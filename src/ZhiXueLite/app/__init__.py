@@ -1,8 +1,9 @@
 from flask import Flask, jsonify
 from flask_login import LoginManager
-from app.database import init_db
+from app.database import db, init_db
 from app.config import Config
-import app.models  # 导入模型以确保创建表
+import app.user.models
+import app.exam.models  # 导入模型以确保创建表
 
 
 def create_app(config_class=Config):
@@ -27,6 +28,19 @@ def create_app(config_class=Config):
 
     # 注册蓝图
     from app.user.routes import user_bp
+    from app.exam.routes import exam_bp
     app.register_blueprint(user_bp, url_prefix="/user")
+    app.register_blueprint(exam_bp, url_prefix="/exam")
+
+    @app.cli.command("init-db")
+    def init_db_command():
+        """清除所有数据并初始化数据库"""
+        with app.app_context():
+            if input("Are you sure you want to drop all tables? (y/n): ").lower() == "y":
+                db.drop_all()
+                db.create_all()
+                print("Initialized the database and created the tables.")
+            else:
+                print("Database initialization canceled.")
 
     return app

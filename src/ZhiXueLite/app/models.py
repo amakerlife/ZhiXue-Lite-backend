@@ -1,6 +1,5 @@
-from dataclasses import field
+from dataclasses import dataclass, field
 from typing import Dict
-from pydantic import BaseModel
 
 
 class ZhixueError(Exception):
@@ -27,7 +26,8 @@ class ConfigError(Exception):
     pass
 
 
-class Score(BaseModel):
+@dataclass
+class Score():
     name: str
     score: str
     classrank: str
@@ -35,7 +35,7 @@ class Score(BaseModel):
     subjectcode: int
 
 
-class StudentScoreInfo(BaseModel):
+class StudentScoreInfo():
     username: str
     user_id: str
     label: str
@@ -48,9 +48,8 @@ class StudentScoreInfo(BaseModel):
     def __init__(self, **data):
         super().__init__(**data)
         self.scores = {
-            "总分": Score(name="总分", score=self.all_score,
-                        classrank=self.class_rank,
-                        schoolrank=self.school_rank, subjectcode=-1)
+            "总分": Score("总分", self.all_score, self.class_rank,
+                        self.school_rank, -1)
         }
 
     def add_subject_score(
@@ -62,9 +61,9 @@ class StudentScoreInfo(BaseModel):
         subject_code: int
     ):
         self.scores[subject_name] = Score(
-            name=subject_name,
-            score=score,
-            classrank=class_rank,
-            schoolrank=school_rank,
-            subjectcode=subject_code
+            subject_name,
+            score,
+            class_rank,
+            school_rank,
+            subject_code
         )
