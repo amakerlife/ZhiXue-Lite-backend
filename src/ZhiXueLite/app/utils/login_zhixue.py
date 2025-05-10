@@ -13,11 +13,10 @@ from zhixuewang.exceptions import (
 from zhixuewang.session import get_basic_session
 from zhixuewang.urls import Url
 
-from ZhiXueLite.app.utils import config_loader
+from app.config import Config
 from app.models import LoginCaptchaError
 
-teachers = config_loader.config.teachers
-captcha_api = config_loader.config.captcha_api
+captcha_api = Config.GEETEST_CAPTCHA_URL
 
 MAX_RETRIES = 5
 CHANGYAN_LOGIN_URL = "https://pass.changyan.com/login/checkLogin"
@@ -208,7 +207,7 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
     else:
         try:
             if (origin_password == "111111"):
-                    raise LoginError("密码强度过低")
+                raise LoginError("密码强度过低")
             captcha_data = gen_captcha_data(session)
             captcha_id, session = login_via_changyan(
                 username, password, captcha_data, session

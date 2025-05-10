@@ -1,14 +1,14 @@
 import json
 import re
 from time import sleep
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 from loguru import logger
 from zhixuewang.teacher import TeacherAccount
 
 from ZhiXueLite.app.utils.answersheet import draw_answersheet
 from app.models import ZhixueError, Score, StudentScoreInfo
-from ZhiXueLite.app.utils.login import get_session_by_captcha, update_login_status
+from ZhiXueLite.app.utils.login_zhixue import get_session_by_captcha, update_login_status
 
 
 class ExtendedTeacherAccount(TeacherAccount):
@@ -205,7 +205,7 @@ class ExtendedTeacherAccount(TeacherAccount):
 
     def get_answersheet_data(self, subjectid: str, stuid: str) -> Tuple[
         Dict[str, str],
-        Dict[int, List[Dict[str, Union[int, List[int]]]]],
+        Dict[int, List[Dict[str, int | List[int]]]],
         Dict[int, Dict[str, str]],
         Dict[int, Dict[str,
                        str |
@@ -316,7 +316,8 @@ class ExtendedTeacherAccount(TeacherAccount):
                 })
 
         sheet_images = data["sheetImages"]  # 原卷链接
-        paper_type = json.loads(data["answerSheetLocation"])["paperType"]  # 纸张类型
+        paper_type = json.loads(data["answerSheetLocation"])[
+            "paperType"]  # 纸张类型
 
         return topic_mapping, page_positions, objective_answer, answer_details, sheet_images, paper_type
 
@@ -363,7 +364,8 @@ class ExtendedTeacherAccount(TeacherAccount):
         if "<html" in r.text:
             logger.warning("Failed to get student id")
             raise ZhixueError("Failed to get student id")
-        data = r.json()["result"]["studentRank"][0]["userId"]  # TODO: 支持多个学生，进行选择
+        # TODO: 支持多个学生，进行选择
+        data = r.json()["result"]["studentRank"][0]["userId"]
         return data
 
 

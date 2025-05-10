@@ -1,6 +1,6 @@
 from zhixuewang.student import StudentAccount
 
-from ZhiXueLite.app.utils.login import update_login_status, get_session_by_captcha
+from ZhiXueLite.app.utils.login_zhixue import update_login_status, get_session_by_captcha
 
 
 class ExtendedStudentAccount(StudentAccount):

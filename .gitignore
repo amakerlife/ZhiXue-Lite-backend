@@ -8,3 +8,4 @@ config.json
 build
 .env
 geetest-solver
+migrations

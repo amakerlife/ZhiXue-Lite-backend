@@ -17,6 +17,17 @@ class Exam(db.Model):
     exam_name = db.Column(db.String(255), nullable=False)
 
 
+class UserExam(db.Model):
+    __tablename__ = "user_exams"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    zhixue_username = db.Column(db.String(50), nullable=False)
+    exam_id = db.Column(db.String(50), db.ForeignKey('exams.exam_id'), nullable=False)
+    exam_name = db.Column(db.String(255), db.ForeignKey('exams.exam_name'), nullable=False)
+
+    exam = db.relationship("Exam", backref="user_exams")
+
+
 class Subject(db.Model):
     __tablename__ = "subjects"
 

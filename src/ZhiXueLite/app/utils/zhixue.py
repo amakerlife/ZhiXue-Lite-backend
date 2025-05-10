@@ -7,7 +7,7 @@ from loguru import logger
 from openpyxl import Workbook
 
 from ZhiXueLite.app.utils.config_loader import config
-from ZhiXueLite.app.utils.login import login_student, login_teacher, update_login_status
+from ZhiXueLite.app.utils.login_zhixue import login_student, login_teacher, update_login_status
 from app.models import (
     FailedToGetStudentAccountError,
     StudentScoreInfo,

@@ -35,6 +35,7 @@ class Score():
     subjectcode: int
 
 
+@dataclass
 class StudentScoreInfo():
     username: str
     user_id: str

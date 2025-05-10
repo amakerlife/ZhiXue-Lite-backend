@@ -18,6 +18,8 @@ class User(UserMixin, db.Model):
     last_login = db.Column(db.DateTime, nullable=True)
     registration_ip = db.Column(db.String(45), nullable=True)
     last_login_ip = db.Column(db.String(45), nullable=True)
+    zhixue_username = db.Column(db.String(80), nullable=True)
+    zhixue_password = db.Column(db.String(200), nullable=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -27,25 +29,10 @@ class User(UserMixin, db.Model):
 
     def to_dict(self):
         return {
-            "id": self.id,
             "username": self.username,
             "email": self.email,
             "role": self.role,
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
+            "zhixue_username": self.zhixue_username,
         }
-
-
-class UserSession(db.Model):
-    """用户会话模型"""
-    __tablename__ = "user_sessions"
-
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
-    session_id = db.Column(db.String(255), nullable=False, unique=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    last_accessed = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    ip_address = db.Column(db.String(45), nullable=True)
-    user_agent = db.Column(db.String(255), nullable=True)
-
-    user = db.relationship("User", backref="sessions")
