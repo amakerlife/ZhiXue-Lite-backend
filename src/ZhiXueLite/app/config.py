@@ -8,6 +8,13 @@ class Config:
     # --- SQLAlchemy 配置 ---
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = False
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+        "pool_size": 10,
+        "max_overflow": 5,
+        "pool_timeout": 30,
+    }
 
     # --- Flask-Login 配置 ---
     REMEMBER_COOKIE_DURATION = timedelta(days=30)
@@ -31,14 +38,14 @@ class DevelopmentConfig(Config):
         "sqlite:///data.db"
 
 
-# class ProductionConfig(Config):
-#     DEBUG = False
-#     SECRET_KEY = os.environ["SECRET_KEY"]
-#     SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
+class ProductionConfig(Config):
+    DEBUG = False
+    SECRET_KEY = os.environ["SECRET_KEY"]
+    SQLALCHEMY_DATABASE_URI = os.environ["DATABASE_URL"]
 
 
 config = {
     "development": DevelopmentConfig,
-    # "production": ProductionConfig,
+    "production": ProductionConfig,
     "default": DevelopmentConfig
 }

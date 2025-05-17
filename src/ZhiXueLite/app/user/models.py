@@ -5,6 +5,15 @@ from app.database import db
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
+class ZhiXueUser(db.Model):
+    __tablename__ = "zhixue_users"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(200), nullable=False)
+    cookie = db.Column(db.Text, nullable=True)
+
+
 class User(UserMixin, db.Model):
     __tablename__ = "users"
 
@@ -18,8 +27,9 @@ class User(UserMixin, db.Model):
     last_login = db.Column(db.DateTime, nullable=True)
     registration_ip = db.Column(db.String(45), nullable=True)
     last_login_ip = db.Column(db.String(45), nullable=True)
-    zhixue_username = db.Column(db.String(80), nullable=True)
-    zhixue_password = db.Column(db.String(200), nullable=True)
+    zhixue_account_id = db.Column(db.Integer, db.ForeignKey("zhixue_users.id"), nullable=True)
+
+    zhixue = db.relationship("ZhiXueUser", backref="user")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -34,5 +44,5 @@ class User(UserMixin, db.Model):
             "role": self.role,
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
-            "zhixue_username": self.zhixue_username,
+            "zhixue_username": self.zhixue.username if self.zhixue else None,
         }

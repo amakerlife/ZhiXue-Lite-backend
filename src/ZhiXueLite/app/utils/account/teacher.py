@@ -4,11 +4,12 @@ from time import sleep
 from typing import Dict, List, Tuple
 
 from loguru import logger
+import requests
 from zhixuewang.teacher import TeacherAccount
 
-from ZhiXueLite.app.utils.answersheet import draw_answersheet
+from app.utils.answersheet import draw_answersheet
 from app.models import ZhixueError, Score, StudentScoreInfo
-from ZhiXueLite.app.utils.login_zhixue import get_session_by_captcha, update_login_status
+from app.utils.login_zhixue import get_session_by_captcha, set_user_session, update_login_status
 
 
 class ExtendedTeacherAccount(TeacherAccount):
@@ -18,6 +19,17 @@ class ExtendedTeacherAccount(TeacherAccount):
         更新登录状态
         """
         update_login_status(self)
+
+    def get_cookie(self) -> str:
+        """
+        获取 Cookie 字符串
+        """
+        if not self.get_session():
+            return ""
+        cookie_items = []
+        for name, value in self.get_session().cookies.items():
+            cookie_items.append(f"{name}={value}")
+        return "; ".join(cookie_items)
 
     def get_exam_subjects(self, examid: str) -> Dict[
         str, Dict[str, str]
@@ -188,7 +200,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             )
             data = r.json()["result"]
             for student in data["studentRank"]:
-                student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentLabel"],
+                student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentLabel"],  # type: ignore
                                                 student["className"], student["allScore"], student["classRank"],
                                                 student["schoolRank"])
                 if "-" in student["schoolRank"] or "-" in student["classRank"]:
@@ -382,3 +394,19 @@ def login_teacher(username: str, password: str, method: str = "changyan") -> Ext
     """
     session = get_session_by_captcha(username, password, method)
     return ExtendedTeacherAccount(session).set_base_info().set_advanced_info()
+
+
+def login_teacher_session(cookie: str) -> ExtendedTeacherAccount:
+    """
+    通过 session 登录教师账号
+
+    Args:
+        cookie (str): Cookie 字符串
+
+    Returns:
+        ExtendedTeacherAccount: 教师账号
+    """
+    session = set_user_session(cookie)
+    account = ExtendedTeacherAccount(session)
+    account.update_login_status()
+    return account.set_base_info().set_advanced_info()

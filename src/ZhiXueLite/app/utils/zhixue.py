@@ -6,8 +6,8 @@ from typing import Dict, List, Tuple, cast
 from loguru import logger
 from openpyxl import Workbook
 
-from ZhiXueLite.app.utils.config_loader import config
-from ZhiXueLite.app.utils.login_zhixue import login_student, login_teacher, update_login_status
+from app.utils.config_loader import config
+from app.utils.login_zhixue import login_student, login_teacher, update_login_status
 from app.models import (
     FailedToGetStudentAccountError,
     StudentScoreInfo,
@@ -15,8 +15,8 @@ from app.models import (
     LoginCaptchaError,
     FailedToGetTeacherAccountError
 )
-from ZhiXueLite.account.student import ExtendedStudentAccount
-from ZhiXueLite.account.teacher import ExtendedTeacherAccount
+from account.student import ExtendedStudentAccount
+from account.teacher import ExtendedTeacherAccount
 
 TEACHER_USERNAMES = config.teachers.teacher_accounts
 TEACHER_PASSWORDS = config.teachers.teacher_passwords

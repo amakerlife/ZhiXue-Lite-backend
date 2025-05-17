@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple, cast
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-from ZhiXueLite.app.utils.config_loader import config
+from app.utils.config_loader import config
 from app.models import ZhixueError
 
 font_path = config.font_path

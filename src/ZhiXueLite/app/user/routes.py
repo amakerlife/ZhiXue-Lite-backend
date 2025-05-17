@@ -1,10 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from app.utils.login_zhixue import get_session_by_captcha
+from app.utils.account.student import login_student
 from app.database import db
-from app.user.models import User
+from app.user.models import User, ZhiXueUser
 from datetime import datetime
-from app import limiter  # 导入 limiter
 
 user_bp = Blueprint("user", __name__)
 
@@ -126,9 +125,9 @@ def update_user(user_id):
     return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200
 
 
+# TODO: 频率限制
 @user_bp.route("/connect", methods=["POST"])
 @login_required
-@limiter.limit("2 per 20 minutes")  # 添加频率限制
 def connect_zhixue():
     """绑定智学网账号"""
     data = request.get_json()
@@ -137,19 +136,31 @@ def connect_zhixue():
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
     user = User.query.get_or_404(current_user.id)
-    if user.zhixue_username:
+    if user.zhixue:
         return jsonify({"success": False, "message": "智学网账号已绑定，请先解绑"}), 400
 
     zhixue_username = data["username"]
     zhixue_password = data["password"]
 
     try:
-        get_session_by_captcha(zhixue_username, zhixue_password)
+        zhixue_account = login_student(zhixue_username, zhixue_password)
     except Exception as e:
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 400
 
-    user.zhixue_username = zhixue_username
-    user.zhixue_password = zhixue_password  # TODO: 存储加密后的密码
+    # 添加智学网账号信息到数据库
+    zhixue_record = ZhiXueUser.query.filter_by(username=zhixue_username).first()
+    if zhixue_record:
+        zhixue_record.cookie = zhixue_account.get_cookie()
+    else:
+        zhixue_record = ZhiXueUser()
+        zhixue_record.username = zhixue_username
+        zhixue_record.password = zhixue_password  # TODO: 存储加密后的密码
+        zhixue_record.cookie = zhixue_account.get_cookie()
+        db.session.add(zhixue_record)
+
+    user.zhixue = zhixue_record
+    user.zhixue_account_id = zhixue_record.id
+
     db.session.commit()
     return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
 
@@ -159,7 +170,6 @@ def connect_zhixue():
 def disconnect_zhixue():
     """解绑智学网账号"""
     user = User.query.get_or_404(current_user.id)
-    user.zhixue_username = None
-    user.zhixue_password = None
+    user.zhixue = None
     db.session.commit()
     return jsonify({"success": True, "message": "智学网账号已解绑"}), 200

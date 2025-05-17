@@ -280,3 +280,27 @@ def update_login_status(account):
     # session过期
     password = base64.b64decode(account._session.cookies["pwd"].encode()).decode()
     account._session = get_session_by_captcha(account.username, password)
+
+
+def set_user_session(cookie: str) -> Session | None:
+    """
+    通过 cookie 获取用户 session
+
+    Args:
+        cookie (str): 用户的 cookie 字符串，标准 HTTP cookie 格式
+
+    Returns:
+        Session: 设置了 cookie 的会话对象，如果 cookie 无效返回 None
+    """
+    session = get_basic_session()
+
+    try:
+        for item in cookie.split(';'):
+            if '=' in item:
+                name, value = item.strip().split('=', 1)
+                session.cookies.set(name, value)
+        return session
+
+    except Exception as e:
+        logger.error(f"设置 cookie 时发生错误: {str(e)}")
+        return None
