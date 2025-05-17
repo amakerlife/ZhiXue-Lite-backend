@@ -1,3 +1,4 @@
+import os
 from flask import Flask, jsonify
 from flask_login import LoginManager
 from flask_session import Session
@@ -7,12 +8,15 @@ from app.config import config
 import app.user.models
 import app.exam.models  # 导入模型以确保创建表
 
-def create_app(config_name="default"):
+config_name = os.getenv("FLASK_ENV") or "default"
+
+def create_app(config_name=config_name):
     app = Flask("ZhiXueLite-backend")
+
     app.config.from_object(config[config_name])
 
     init_db(app)
-    Migrate(app, db)  # 初始化 Migrate
+    Migrate(app, db)
 
     Session(app)
 
