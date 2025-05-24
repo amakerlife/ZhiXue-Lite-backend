@@ -16,21 +16,43 @@ def zhixue_account_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# TODO: 持久化智学网 session
 
-
-@exam_bp.route("/list", methods=["GET"])  # TODO: 添加分页
+@exam_bp.route("/list", methods=["GET"])
 @login_required
 @zhixue_account_required
 def get_exam_list():
     """
     从数据库获取当前学生的考试列表
+    可选参数
+    - page: 页码，默认为 1
+    - per_page: 每页数量，默认为 10
+    - query: 搜索关键字
     """
-    exams = UserExam.query.filter_by(zhixue_username=current_user.zhixue.username).all()
-    exam_list = [{"exam_id": item.exam.id, "exam_name": item.exam.name} for item in exams]
-    return jsonify({"success": True, "exams": exam_list}), 200
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    query = request.args.get("query", "", type=str)
+    exams = UserExam.query.filter_by(zhixue_username=current_user.zhixue.username).join(Exam)
+    if query:
+        exams = exams.filter(Exam.name.contains(query))
+    exams = exams.order_by(Exam.created_at.desc())
+    pagination = exams.paginate(page=page, per_page=per_page, error_out=False)
+    exams = pagination.items
+    exam_list = [{"id": item.exam.id, "name": item.exam.name} for item in exams]
+    return jsonify({
+        "success": True,
+        "exams": exam_list,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": pagination.total,
+            "pages": pagination.pages,
+            "has_prev": pagination.has_prev,
+            "has_next": pagination.has_next
+        }
+    }), 200
 
 
+# TODO: 后台任务处理
 @exam_bp.route("/list/fetch", methods=["GET"])
 @login_required
 @zhixue_account_required
@@ -67,8 +89,7 @@ def fetch_exam_list():
             db.session.add(new_user_exam)
             db.session.commit()
 
-    # 按 userexam.exam.created_at 降序排列考试列表
-    result = UserExam.query.filter_by(zhixue_username=current_user.zhixue.username).all()
+    result = UserExam.query.filter_by(zhixue_username=current_user.zhixue.username).join(Exam).order_by(Exam.created_at.desc()).all()
     exams = [
         {
             "id": item.exam.id,

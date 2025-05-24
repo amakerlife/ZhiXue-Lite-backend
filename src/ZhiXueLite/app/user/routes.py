@@ -4,16 +4,30 @@ from app.utils.account.student import login_student
 from app.database import db
 from app.user.models import User, ZhiXueUser
 from datetime import datetime
+from app import limiter
+from flask_limiter.util import get_remote_address
 
 user_bp = Blueprint("user", __name__)
 
 
-def get_client_ip():
-    if request.headers.get("X-Forwarded-For"):
-        ip = request.headers.get("X-Forwarded-For").split(",")[0]  # type: ignore
-    else:
-        ip = request.remote_addr or "127.0.0.1"
-    return ip
+def get_ip_limit():
+    """基于 IP 的限制"""
+    return get_remote_address()
+
+
+def get_user_limit():
+    """基于用户的限制"""
+    if current_user.is_authenticated:
+        return f"user_{current_user.id}"
+    return get_remote_address()
+
+
+# def get_client_ip():
+#     if request.headers.get("X-Forwarded-For"):
+#         ip = request.headers.get("X-Forwarded-For").split(",")[0]  # type: ignore
+#     else:
+#         ip = request.remote_addr or "127.0.0.1"
+#     return ip
 
 
 @user_bp.route("/signup", methods=["POST"])
@@ -36,9 +50,9 @@ def signup():  # TODO: 添加验证码
     user.set_password(data["password"])
     user.role = "user"
     user.created_at = datetime.utcnow()
-    user.registration_ip = get_client_ip()
+    user.registration_ip = get_remote_address()
     user.last_login = datetime.utcnow()
-    user.last_login_ip = get_client_ip()
+    user.last_login_ip = get_remote_address()
 
     db.session.add(user)
     db.session.commit()
@@ -64,7 +78,7 @@ def login():
         return jsonify({"success": False, "message": "用户已被禁用"}), 403
 
     user.last_login = datetime.utcnow()
-    user.last_login_ip = get_client_ip()
+    user.last_login_ip = get_remote_address()
     db.session.commit()
 
     login_user(user, remember=True)
@@ -125,9 +139,26 @@ def update_user(user_id):
     return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200
 
 
-# TODO: 频率限制
+def already_bound_exempt():
+    """如果用户已经绑定智学网账号，则不计入限制"""
+    if not current_user.is_authenticated:
+        return False
+    user = User.query.get(current_user.id)
+    return bool(user and user.zhixue is not None)
+
+
 @user_bp.route("/connect", methods=["POST"])
 @login_required
+@limiter.limit("2 per 20 minutes",
+               key_func=get_ip_limit,
+               exempt_when=already_bound_exempt,
+               deduct_when=lambda response: response.status_code == 403
+               )
+@limiter.limit("1 per 20 minutes",
+               key_func=get_user_limit,
+               exempt_when=already_bound_exempt,
+               deduct_when=lambda response: response.status_code == 403
+               )
 def connect_zhixue():
     """绑定智学网账号"""
     data = request.get_json()
@@ -145,10 +176,11 @@ def connect_zhixue():
     try:
         zhixue_account = login_student(zhixue_username, zhixue_password)
     except Exception as e:
-        return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 400
+        return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库
-    zhixue_record = ZhiXueUser.query.filter_by(username=zhixue_username).first()
+    zhixue_record = ZhiXueUser.query.filter_by(
+        username=zhixue_username).first()
     if zhixue_record:
         zhixue_record.cookie = zhixue_account.get_cookie()
     else:

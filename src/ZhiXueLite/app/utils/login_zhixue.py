@@ -193,8 +193,10 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
             captcha_id, session = login_via_zhixue(
                 username, origin_password, captcha_data, session
             )
-        except LoginError:
+        except LoginError as e:
             try:
+                if (e.__str__().find("密码错误") != -1):
+                    raise e
                 if (origin_password == "111111"):
                     raise LoginError("密码强度过低")
                 captcha_data = gen_captcha_data(session)
@@ -212,8 +214,10 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
             captcha_id, session = login_via_changyan(
                 username, password, captcha_data, session
             )
-        except LoginError:
+        except LoginError as e:
             try:
+                if (e.__str__().find("密码错误") != -1):
+                    raise e
                 captcha_data = gen_captcha_data(session)
                 captcha_id, session = login_via_zhixue(
                     username, origin_password, captcha_data, session
