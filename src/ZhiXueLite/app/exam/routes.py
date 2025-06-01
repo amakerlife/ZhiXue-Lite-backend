@@ -46,7 +46,8 @@ def get_exam_list():
     end = start + per_page
     paginated_exams = exams[start:end]
 
-    exam_list = [{"id": item.exam.id, "name": item.exam.name} for item in paginated_exams]
+    exam_list = [{"id": item.exam.id, "name": item.exam.name, "created_at": item.exam.created_at}
+                 for item in paginated_exams]
 
     return jsonify({
         "success": True,
@@ -104,7 +105,8 @@ def fetch_exam_list():
 
     db.session.commit()
 
-    stmt = select(UserExam).join(Exam).where(UserExam.zhixue_username == current_user.zhixue.username).order_by(Exam.created_at.desc())
+    stmt = select(UserExam).join(Exam).where(UserExam.zhixue_username ==
+                                             current_user.zhixue.username).order_by(Exam.created_at.desc())
     result = db.session.scalars(stmt).all()
     exams = [
         {
