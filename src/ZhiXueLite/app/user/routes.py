@@ -189,9 +189,9 @@ def connect_zhixue():
         zhixue_record.password = zhixue_password  # TODO: 存储加密后的密码
         zhixue_record.cookie = zhixue_account.get_cookie()
         db.session.add(zhixue_record)
+        db.session.flush()
 
     user.zhixue = zhixue_record
-    user.zhixue_account_id = zhixue_record.id
 
     db.session.commit()
     return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
