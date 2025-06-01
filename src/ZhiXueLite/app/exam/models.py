@@ -1,54 +1,64 @@
-from app.database import db
+from typing import Optional, List
+from sqlalchemy import String, Float, Integer, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.database import Base
 
 
-class Student(db.Model):
+class Student(Base):
     __tablename__ = "students"
 
-    id = db.Column(db.String(50), primary_key=True, unique=True, nullable=False)
-    name = db.Column(db.String(50), nullable=False)
-    label = db.Column(db.String(50), nullable=False)
-    no = db.Column(db.String(50), nullable=False)
+    id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
+    name: Mapped[str] = mapped_column(String(50))
+    label: Mapped[str] = mapped_column(String(50))
+    no: Mapped[str] = mapped_column(String(50))
+
+    scores: Mapped[List["Score"]] = relationship("Score", back_populates="student")
 
 
-class Exam(db.Model):
+class Exam(Base):
     __tablename__ = "exams"
 
-    id = db.Column(db.String(50), primary_key=True, unique=True, nullable=False)
-    name = db.Column(db.String(255), nullable=False)
-    created_at = db.Column(db.Float, nullable=False)
+    id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
+    name: Mapped[str] = mapped_column(String(255))
+    created_at: Mapped[float] = mapped_column(Float)
+
+    user_exams: Mapped[List["UserExam"]] = relationship("UserExam", back_populates="exam")
+    scores: Mapped[List["Score"]] = relationship("Score", back_populates="exam")
 
 
-class UserExam(db.Model):
+class UserExam(Base):
     __tablename__ = "user_exams"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    zhixue_username = db.Column(db.String(50), nullable=False)
-    exam_id = db.Column(db.String(50), db.ForeignKey('exams.id'), nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    zhixue_username: Mapped[str] = mapped_column(String(50))
+    exam_id: Mapped[str] = mapped_column(String(50), ForeignKey('exams.id'))
 
-    exam = db.relationship("Exam", backref="user_exams")
+    exam: Mapped["Exam"] = relationship("Exam", back_populates="user_exams")
 
 
-class Subject(db.Model):
+class Subject(Base):
     __tablename__ = "subjects"
 
-    id = db.Column(db.String(50), primary_key=True, unique=True, nullable=False)
-    name = db.Column(db.String(20), nullable=False)
+    id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
+    name: Mapped[str] = mapped_column(String(20))
+
+    scores: Mapped[List["Score"]] = relationship("Score", back_populates="subject")
 
 
-class Score(db.Model):
+class Score(Base):
     __tablename__ = "scores"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    student_id = db.Column(db.String(50), db.ForeignKey('students.id'), nullable=False)
-    exam_id = db.Column(db.String(50), db.ForeignKey('exams.id'), nullable=False)
-    subject_id = db.Column(db.String(50), db.ForeignKey('subjects.id'), nullable=False)
-    class_name = db.Column(db.String(50), nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    student_id: Mapped[str] = mapped_column(String(50), ForeignKey('students.id'))
+    exam_id: Mapped[str] = mapped_column(String(50), ForeignKey('exams.id'))
+    subject_id: Mapped[str] = mapped_column(String(50), ForeignKey('subjects.id'))
+    class_name: Mapped[str] = mapped_column(String(50))
 
-    score = db.Column(db.Float, nullable=True)  # 为空时表示原始数据无成绩，下同
-    class_rank = db.Column(db.Integer, nullable=True)
-    school_rank = db.Column(db.Integer, nullable=True)
-    score_status = db.Column(db.String(20), nullable=True, default="ok")  # 状态，ok 正常，错误状态待发掘
+    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 为空时表示原始数据无成绩，下同
+    class_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    school_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    score_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="ok")  # 状态，ok 正常，错误状态待发掘
 
-    student = db.relationship("Student", backref="scores")
-    exam = db.relationship("Exam", backref="scores")
-    subject = db.relationship("Subject", backref="scores")
+    student: Mapped["Student"] = relationship("Student", back_populates="scores")
+    exam: Mapped["Exam"] = relationship("Exam", back_populates="scores")
+    subject: Mapped["Subject"] = relationship("Subject", back_populates="scores")

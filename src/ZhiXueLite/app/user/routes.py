@@ -22,14 +22,6 @@ def get_user_limit():
     return get_remote_address()
 
 
-# def get_client_ip():
-#     if request.headers.get("X-Forwarded-For"):
-#         ip = request.headers.get("X-Forwarded-For").split(",")[0]  # type: ignore
-#     else:
-#         ip = request.remote_addr or "127.0.0.1"
-#     return ip
-
-
 @user_bp.route("/signup", methods=["POST"])
 def signup():  # TODO: 添加验证码
     """用户注册"""
@@ -38,21 +30,22 @@ def signup():  # TODO: 添加验证码
     if not all(key in data for key in ("username", "password", "email")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
-    if User.query.filter_by(username=data["username"]).first():
+    if db.session.execute(db.select(User).filter_by(username=data["username"])).scalar_one_or_none():
         return jsonify({"success": False, "message": "用户名已被使用"}), 400
-    if User.query.filter_by(email=data["email"]).first():
+    if db.session.execute(db.select(User).filter_by(email=data["email"])).scalar_one_or_none():
         return jsonify({"success": False, "message": "邮箱已被使用"}), 400
 
     # 创建新用户
-    user = User()
-    user.username = data["username"]
-    user.email = data["email"]
+    user = User(
+        username = data["username"],
+        email = data["email"],
+        role = "user",
+        created_at = datetime.utcnow(),
+        registration_ip = get_remote_address(),
+        last_login = datetime.utcnow(),
+        last_login_ip = get_remote_address()
+    )
     user.set_password(data["password"])
-    user.role = "user"
-    user.created_at = datetime.utcnow()
-    user.registration_ip = get_remote_address()
-    user.last_login = datetime.utcnow()
-    user.last_login_ip = get_remote_address()
 
     db.session.add(user)
     db.session.commit()
@@ -70,7 +63,7 @@ def login():
     if not all(key in data for key in ("username", "password")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
-    user = User.query.filter_by(username=data["username"]).first()
+    user = db.session.execute(db.select(User).filter_by(username=data["username"])).scalar_one_or_none()
     if not user or not user.check_password(data["password"]):
         return jsonify({"success": False, "message": "用户名或密码错误"}), 401
 
@@ -108,7 +101,7 @@ def get_user(user_id):
     if current_user.id != user_id and current_user.role != "admin":
         return jsonify({"success": False, "message": "您无权访问该页面"}), 403
 
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     return jsonify({"success": True, "user": user.to_dict()}), 200
 
 
@@ -119,7 +112,7 @@ def update_user(user_id):
     if current_user.id != user_id and current_user.role != "admin":
         return jsonify({"success": False, "message": "您无权访问该页面"}), 403
 
-    user = User.query.get_or_404(user_id)
+    user = db.get_or_404(User, user_id)
     data = request.get_json()
 
     # 只允许更新特定字段
@@ -143,7 +136,7 @@ def already_bound_exempt():
     """如果用户已经绑定智学网账号，则不计入限制"""
     if not current_user.is_authenticated:
         return False
-    user = User.query.get(current_user.id)
+    user = db.session.get(User, current_user.id)
     return bool(user and user.zhixue is not None)
 
 
@@ -166,7 +159,7 @@ def connect_zhixue():
     if not all(key in data for key in ("username", "password")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
-    user = User.query.get_or_404(current_user.id)
+    user = db.get_or_404(User, current_user.id)
     if user.zhixue:
         return jsonify({"success": False, "message": "智学网账号已绑定，请先解绑"}), 400
 
@@ -179,15 +172,16 @@ def connect_zhixue():
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库
-    zhixue_record = ZhiXueUser.query.filter_by(
-        username=zhixue_username).first()
+    zhixue_record = db.session.execute(db.select(ZhiXueUser).filter_by(
+        username=zhixue_username)).scalar_one_or_none()
     if zhixue_record:
         zhixue_record.cookie = zhixue_account.get_cookie()
     else:
-        zhixue_record = ZhiXueUser()
-        zhixue_record.username = zhixue_username
-        zhixue_record.password = zhixue_password  # TODO: 存储加密后的密码
-        zhixue_record.cookie = zhixue_account.get_cookie()
+        zhixue_record = ZhiXueUser(
+            username=zhixue_username,
+            password=zhixue_password,  # TODO: 存储加密后的密码
+            cookie=zhixue_account.get_cookie()
+        )
         db.session.add(zhixue_record)
         db.session.flush()
 
@@ -201,7 +195,7 @@ def connect_zhixue():
 @login_required
 def disconnect_zhixue():
     """解绑智学网账号"""
-    user = User.query.get_or_404(current_user.id)
+    user = db.get_or_404(User, current_user.id)
     user.zhixue = None
     db.session.commit()
     return jsonify({"success": True, "message": "智学网账号已解绑"}), 200

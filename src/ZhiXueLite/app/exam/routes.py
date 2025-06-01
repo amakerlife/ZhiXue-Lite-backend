@@ -1,10 +1,10 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from functools import wraps
-from app.utils.account.student import login_student, login_student_session
+from sqlalchemy import select, desc
 from app.database import db
-from app.exam.models import Student, Exam, UserExam, Subject, Score
-
+from app.exam.models import Exam, UserExam
+from app.utils.account.student import login_student_session
 exam_bp = Blueprint("exam", __name__)
 
 
@@ -31,23 +31,33 @@ def get_exam_list():
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
-    exams = UserExam.query.filter_by(zhixue_username=current_user.zhixue.username).join(Exam)
+
+    stmt = select(UserExam).where(UserExam.zhixue_username == current_user.zhixue.username).join(Exam)
     if query:
-        exams = exams.filter(Exam.name.contains(query))
-    exams = exams.order_by(Exam.created_at.desc())
-    pagination = exams.paginate(page=page, per_page=per_page, error_out=False)
-    exams = pagination.items
-    exam_list = [{"id": item.exam.id, "name": item.exam.name} for item in exams]
+        stmt = stmt.where(Exam.name.contains(query))
+    stmt = stmt.order_by(desc(Exam.created_at))
+
+    # 执行查询并分页
+    exams = db.session.scalars(stmt).all()
+
+    # 手动分页
+    total = len(exams)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paginated_exams = exams[start:end]
+
+    exam_list = [{"id": item.exam.id, "name": item.exam.name} for item in paginated_exams]
+
     return jsonify({
         "success": True,
         "exams": exam_list,
         "pagination": {
             "page": page,
             "per_page": per_page,
-            "total": pagination.total,
-            "pages": pagination.pages,
-            "has_prev": pagination.has_prev,
-            "has_next": pagination.has_next
+            "total": total,
+            "pages": (total + per_page - 1) // per_page,
+            "has_prev": page > 1,
+            "has_next": end < total
         }
     }), 200
 
@@ -69,27 +79,33 @@ def fetch_exam_list():
     # 将考试列表存入数据库
     for exam in exams:
         # 检查考试是否已存在
-        existing_exam = Exam.query.filter_by(id=exam.id).first()
+        existing_exam = db.session.execute(select(Exam).filter_by(id=exam.id)).scalar_one_or_none()
         if not existing_exam:
-            new_exam = Exam()
-            new_exam.id = exam.id
-            new_exam.name = exam.name
-            new_exam.created_at = exam.create_time
+            new_exam = Exam(
+                id=exam.id,
+                name=exam.name,
+                created_at=exam.create_time
+            )
             db.session.add(new_exam)
-            db.session.commit()
+            db.session.flush()
 
         # 检查用户考试记录是否已存在
-        user_exam = UserExam.query.filter_by(
-            zhixue_username=current_user.zhixue.username, exam_id=exam.id
-        ).first()
+        user_exam = db.session.execute(
+            select(UserExam).filter_by(
+                zhixue_username=current_user.zhixue.username, exam_id=exam.id
+            )
+        ).scalar_one_or_none()
         if not user_exam:
-            new_user_exam = UserExam()
-            new_user_exam.zhixue_username = current_user.zhixue.username
-            new_user_exam.exam_id = exam.id
+            new_user_exam = UserExam(
+                zhixue_username=current_user.zhixue.username,
+                exam_id=exam.id
+            )
             db.session.add(new_user_exam)
-            db.session.commit()
 
-    result = UserExam.query.filter_by(zhixue_username=current_user.zhixue.username).join(Exam).order_by(Exam.created_at.desc()).all()
+    db.session.commit()
+
+    stmt = select(UserExam).join(Exam).where(UserExam.zhixue_username == current_user.zhixue.username).order_by(Exam.created_at.desc())
+    result = db.session.scalars(stmt).all()
     exams = [
         {
             "id": item.exam.id,

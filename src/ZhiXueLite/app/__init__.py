@@ -1,4 +1,5 @@
 import os
+from typing import cast
 from flask import Flask, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -61,7 +62,7 @@ def create_app(config_name=config_name):
         """Flask-Login 要求的回调函数，用于从 ID 加载用户"""
         from app.user.models import User
 
-        return User.query.get(int(user_id))
+        return db.session.get(User, int(user_id))
 
     @login_manager.unauthorized_handler
     def unauthorized():
@@ -78,7 +79,7 @@ def create_app(config_name=config_name):
     @app.cli.command("init-db")
     def init_db_command():
         """清除所有数据并初始化数据库"""
-        with app.app_context():
+        with cast(Flask, app).app_context():
             if input("Are you sure you want to drop all tables? (y/n): ").lower() == "y":
                 db.drop_all()
                 db.create_all()
