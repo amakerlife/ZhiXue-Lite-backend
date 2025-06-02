@@ -12,7 +12,7 @@ authors = [
 license = { text = "AGPL-3.0" }
 requires-python = ">= 3.10"
 dependencies = [
-    "Flask==3.1.0",
+    "Flask==3.1.1",
     "Flask-SQLAlchemy==3.1.1",
     "Flask-Migrate==4.1.0",
     "Flask-Login==0.6.3",
