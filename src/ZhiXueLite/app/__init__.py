@@ -10,6 +10,7 @@ from app.database import db, init_db
 from app.config import config
 import app.user.models
 import app.exam.models  # 导入模型以确保创建表
+import app.task.models  # 导入任务模型
 
 config_name = os.getenv("FLASK_ENV") or "default"
 
@@ -67,14 +68,24 @@ def create_app(config_name=config_name):
     @login_manager.unauthorized_handler
     def unauthorized():
         """处理未授权访问 (未登录)"""
-        return jsonify({"message": "Authentication required."}), 401
-
-    # 注册蓝图
+        return jsonify({"message": "Authentication required."}), 401    # 注册蓝图
     from app.user.routes import user_bp
     from app.exam.routes import exam_bp
+    from app.task.routes import task_bp
 
     app.register_blueprint(user_bp, url_prefix="/user")
     app.register_blueprint(exam_bp, url_prefix="/exam")
+    app.register_blueprint(task_bp, url_prefix="/task")
+
+    # 初始化任务管理器
+    from app.task.manager import task_manager
+    from app.task.handlers import register_task_handlers
+
+    task_manager.init_app(app)
+    register_task_handlers()
+
+    # 启动任务管理器
+    task_manager.start()
 
     @app.cli.command("init-db")
     def init_db_command():

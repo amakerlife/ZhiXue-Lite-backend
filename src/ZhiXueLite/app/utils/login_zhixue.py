@@ -306,5 +306,5 @@ def set_user_session(cookie: str) -> Session | None:
         return session
 
     except Exception as e:
-        logger.error(f"设置 cookie 时发生错误: {str(e)}")
+        logger.error(f"Failed to set cookie: {str(e)}")
         return None

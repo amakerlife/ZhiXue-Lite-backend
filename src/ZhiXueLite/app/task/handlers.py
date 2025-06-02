@@ -1,0 +1,100 @@
+import json
+import time
+from typing import Dict, Any
+from sqlalchemy import select
+from app.database import db
+from app.exam.models import Exam, UserExam
+from app.user.models import User
+from app.utils.account.student import login_student_session
+from app.task.manager import task_manager
+from loguru import logger
+
+
+def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, Any]):
+    """
+    拉取考试列表的任务处理器
+    """
+    try:
+        task_manager.update_task_progress(task_id, 10, "正在获取用户信息...")
+
+        # 获取用户信息
+        stmt = select(User).where(User.id == user_id)
+        user = db.session.scalar(stmt)
+        if not user or not user.zhixue:
+            raise ValueError("User not bound to Zhixue account")
+
+        task_manager.update_task_progress(task_id, 20, "正在登录智学网...")        # 检查cookie是否存在
+        if not user.zhixue.cookie:
+            raise ValueError("User cookie is empty")
+        student_account = login_student_session(user.zhixue.cookie)
+        user.zhixue.cookie = student_account.get_cookie()
+        db.session.commit()
+
+        time.sleep(10)
+
+        task_manager.update_task_progress(task_id, 40, "正在拉取考试数据...")
+        exams = student_account.get_exams()
+
+        task_manager.update_task_progress(task_id, 50, "正在处理考试数据...")
+
+        # 将考试列表存入数据库
+        processed_exams = []
+        total_exams = len(exams)
+
+        for i, exam in enumerate(exams):
+            # 检查考试是否已存在
+            stmt = select(Exam).where(Exam.id == exam.id)
+            existing_exam = db.session.scalar(stmt)
+
+            if not existing_exam:
+                new_exam = Exam(
+                    id=exam.id,
+                    name=exam.name,
+                    created_at=exam.create_time
+                )
+                db.session.add(new_exam)
+                db.session.flush()
+
+            # 检查用户考试记录是否已存在
+            stmt = select(UserExam).where(
+                (UserExam.zhixue_username == user.zhixue.username) &
+                (UserExam.exam_id == exam.id)
+            )
+            user_exam = db.session.scalar(stmt)
+
+            if not user_exam:
+                new_user_exam = UserExam(
+                    zhixue_username=user.zhixue.username,
+                    exam_id=exam.id
+                )
+                db.session.add(new_user_exam)
+                processed_exams.append({
+                    "id": exam.id,
+                    "name": exam.name,
+                    "created_at": exam.create_time if isinstance(exam.create_time, (int, float)) else None
+                })
+
+            progress = 50 + (i + 1) / total_exams * 49
+            task_manager.update_task_progress(
+                task_id,
+                int(progress),
+                f"已处理 {i + 1}/{total_exams} 个考试"
+            )
+
+        db.session.commit()
+
+        task_manager.update_task_progress(task_id, 100, "任务完成")
+        return {
+            "total_exams": len(processed_exams),
+            "exams": processed_exams
+        }
+
+    except Exception as e:
+        logger.error(f"Fetch exam list handler failed: {str(e)}")
+        raise
+
+
+def register_task_handlers():
+    """注册所有任务处理器"""
+    task_manager.register_task_handler('fetch_exam_list', fetch_exam_list_handler)
+    logger.success("All task handlers registered successfully.")
