@@ -79,7 +79,7 @@ def create_app(config_name=config_name):
     @app.cli.command("init-db")
     def init_db_command():
         """清除所有数据并初始化数据库"""
-        with cast(Flask, app).app_context():
+        with app.app_context():
             if input("Are you sure you want to drop all tables? (y/n): ").lower() == "y":
                 db.drop_all()
                 db.create_all()

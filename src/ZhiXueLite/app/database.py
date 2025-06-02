@@ -2,12 +2,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from sqlalchemy.orm import DeclarativeBase
 
-db = SQLAlchemy()
-migrate = Migrate()
 
-
-class Base(DeclarativeBase):
+class BaseDb(DeclarativeBase):
     pass
+
+
+db = SQLAlchemy(model_class=BaseDb)
+migrate = Migrate()
 
 
 def init_db(app):

@@ -271,7 +271,7 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
         },
     )
     session.cookies.set("uname", base64.b64encode(username.encode()).decode())
-    session.cookies.set("pwd", base64.b64encode(password.encode()).decode())
+    session.cookies.set("pwd", base64.b64encode(origin_password.encode()).decode())
     return session
 
 
