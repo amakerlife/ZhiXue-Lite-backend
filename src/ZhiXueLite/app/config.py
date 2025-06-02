@@ -27,6 +27,10 @@ class Config:
     SESSION_USE_SIGNER = True  # 使用签名
     PERMANENT_SESSION_LIFETIME = timedelta(days=30)  # 会话过期时间
 
+    # --- 日志配置 ---
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    LOG_DIR = os.environ.get("LOG_DIR")
+
     # --- 其他配置 ---
     GEETEST_CAPTCHA_URL = os.environ["CAPTCHA_URL"]
 

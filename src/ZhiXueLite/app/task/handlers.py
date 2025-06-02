@@ -97,4 +97,4 @@ def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, An
 def register_task_handlers():
     """注册所有任务处理器"""
     task_manager.register_task_handler('fetch_exam_list', fetch_exam_list_handler)
-    logger.success("All task handlers registered successfully.")
+    logger.info("All task handlers registered successfully.")

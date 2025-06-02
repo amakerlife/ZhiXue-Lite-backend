@@ -1,5 +1,4 @@
 .vscode
-.zx
 venv
 .idea
 __pycache__
@@ -8,3 +7,4 @@ config.json
 build
 .env
 geetest-solver
+logs

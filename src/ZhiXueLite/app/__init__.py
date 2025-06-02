@@ -8,6 +8,7 @@ from flask_session import Session
 from flask_migrate import Migrate
 from app.database import db, init_db
 from app.config import config
+from app.utils.logger import setup_logger
 import app.user.models
 import app.exam.models  # 导入模型以确保创建表
 import app.task.models  # 导入任务模型
@@ -33,6 +34,7 @@ def create_app(config_name=config_name):
 
     app.config.from_object(config[config_name])
 
+    setup_logger(app)
     init_db(app)
     Migrate(app, db)
 

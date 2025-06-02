@@ -9,7 +9,7 @@ description = "智学网接口的第三方实现"
 authors = [
     { name = "amakerlife", email = "64350662+amakerlife@users.noreply.github.com" }
 ]
-license = { text = "GPL-3.0" }
+license = { text = "AGPL-3.0" }
 requires-python = ">= 3.10"
 dependencies = [
     "Flask==3.1.0",

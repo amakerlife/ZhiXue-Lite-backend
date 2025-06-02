@@ -158,7 +158,7 @@ class TaskManager:
 
     def polling_worker(self):
         """轮询工作线程"""
-        logger.success("Polling worker started")
+        logger.info("Polling worker started")
 
         while self.is_running:
             try:
@@ -176,7 +176,7 @@ class TaskManager:
                 logger.error(f"Polling worker error: {str(e)}")
                 time.sleep(self.poll_interval)
 
-        logger.success("Polling worker stopped")
+        logger.info("Polling worker stopped")
 
     def start(self):
         """启动任务管理器"""
@@ -190,14 +190,14 @@ class TaskManager:
             daemon=True
         )
         self.polling_thread.start()
-        logger.success("Task Manager started")
+        logger.info("Task Manager started")
 
     def stop(self):
         """停止任务管理器"""
         self.is_running = False
         if self.polling_thread and self.polling_thread.is_alive():
             self.polling_thread.join(timeout=5)
-        logger.success("Task Manager stopped")
+        logger.info("Task Manager stopped")
 
 
 task_manager = TaskManager()
