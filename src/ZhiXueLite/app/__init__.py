@@ -10,8 +10,8 @@ from app.database import db, init_db
 from app.config import config
 from app.utils.logger import setup_logger
 import app.user.models
-import app.exam.models  # 导入模型以确保创建表
-import app.task.models  # 导入任务模型
+import app.exam.models
+import app.task.models  # 导入模型以确保创建表
 
 config_name = os.getenv("FLASK_ENV") or "default"
 
@@ -70,7 +70,9 @@ def create_app(config_name=config_name):
     @login_manager.unauthorized_handler
     def unauthorized():
         """处理未授权访问 (未登录)"""
-        return jsonify({"message": "Authentication required."}), 401    # 注册蓝图
+        return jsonify({"message": "Authentication required."}), 401
+
+    # 注册蓝图
     from app.user.routes import user_bp
     from app.exam.routes import exam_bp
     from app.task.routes import task_bp
@@ -92,8 +94,10 @@ def create_app(config_name=config_name):
     @app.cli.command("init-db")
     def init_db_command():
         """清除所有数据并初始化数据库"""
+        if not app.config["DEBUG"]:
+            print("This command is strongly discouraged in production environments.")
         with app.app_context():
-            if input("Are you sure you want to drop all tables? (y/n): ").lower() == "y":
+            if input("Are you sure you want to drop ALL tables? (y/N): ").lower() == "y":
                 db.drop_all()
                 db.create_all()
                 print("Initialized the database and created the tables.")

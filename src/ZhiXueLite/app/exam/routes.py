@@ -64,76 +64,17 @@ def get_exam_list():
     }), 200
 
 
-# 使用后台任务处理
 @exam_bp.route("/list/fetch", methods=["GET", "POST"])
 @login_required
 @zhixue_account_required
 def fetch_exam_list():
     """
-    从源服务器拉取当前学生的考试列表（后台任务）
+    从源服务器拉取当前学生的考试列表
     """
-    # 创建后台任务
-    task = task_manager.create_task('fetch_exam_list', current_user.id)
+    task = task_manager.create_task("fetch_exam_list", current_user.id)
 
     return jsonify({
         "success": True,
         "task_id": task.id,
         "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
     }), 201
-
-
-# 保留同步版本
-@exam_bp.route("/list/fetch_sync", methods=["GET"])
-@login_required
-@zhixue_account_required
-def fetch_exam_list_sync():
-    """
-    从源服务器拉取当前学生的考试列表（同步版本）
-    """
-    student_account = login_student_session(current_user.zhixue.cookie)
-    current_user.zhixue.cookie = student_account.get_cookie()
-    db.session.commit()
-
-    exams = student_account.get_exams()
-
-    # 将考试列表存入数据库
-    for exam in exams:
-        # 检查考试是否已存在
-        existing_exam = db.session.execute(select(Exam).filter_by(id=exam.id)).scalar_one_or_none()
-        if not existing_exam:
-            new_exam = Exam(
-                id=exam.id,
-                name=exam.name,
-                created_at=exam.create_time
-            )
-            db.session.add(new_exam)
-            db.session.flush()
-
-        # 检查用户考试记录是否已存在
-        user_exam = db.session.execute(
-            select(UserExam).filter_by(
-                zhixue_username=current_user.zhixue.username, exam_id=exam.id
-            )
-        ).scalar_one_or_none()
-        if not user_exam:
-            new_user_exam = UserExam(
-                zhixue_username=current_user.zhixue.username,
-                exam_id=exam.id
-            )
-            db.session.add(new_user_exam)
-
-    db.session.commit()
-
-    stmt = select(UserExam).join(Exam).where(UserExam.zhixue_username ==
-                                             current_user.zhixue.username).order_by(Exam.created_at.desc())
-    result = db.session.scalars(stmt).all()
-    exams = [
-        {
-            "id": item.exam.id,
-            "name": item.exam.name,
-            "created_at": item.exam.created_at,
-        }
-        for item in result
-    ]
-
-    return jsonify({"success": True, "exams": exams}), 200

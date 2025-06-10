@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import String, Integer, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
-from app.database import BaseDb
+from app.database import BaseDBClass
 
 
 class TaskStatus(Enum):
@@ -15,7 +15,7 @@ class TaskStatus(Enum):
     FAILED = "failed"        # 失败
 
 
-class BackgroundTask(BaseDb):
+class BackgroundTask(BaseDBClass):
     __tablename__ = 'background_tasks'
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))

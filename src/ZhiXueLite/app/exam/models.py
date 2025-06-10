@@ -1,10 +1,10 @@
 from typing import Optional, List
 from sqlalchemy import String, Float, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import BaseDb
+from app.database import BaseDBClass
 
 
-class Student(BaseDb):
+class Student(BaseDBClass):
     __tablename__ = "students"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
@@ -15,7 +15,7 @@ class Student(BaseDb):
     scores: Mapped[List["Score"]] = relationship("Score", back_populates="student")
 
 
-class Exam(BaseDb):
+class Exam(BaseDBClass):
     __tablename__ = "exams"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
@@ -26,7 +26,7 @@ class Exam(BaseDb):
     scores: Mapped[List["Score"]] = relationship("Score", back_populates="exam")
 
 
-class UserExam(BaseDb):
+class UserExam(BaseDBClass):
     __tablename__ = "user_exams"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -36,7 +36,7 @@ class UserExam(BaseDb):
     exam: Mapped["Exam"] = relationship("Exam", back_populates="user_exams")
 
 
-class Subject(BaseDb):
+class Subject(BaseDBClass):
     __tablename__ = "subjects"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
@@ -45,7 +45,7 @@ class Subject(BaseDb):
     scores: Mapped[List["Score"]] = relationship("Score", back_populates="subject")
 
 
-class Score(BaseDb):
+class Score(BaseDBClass):
     __tablename__ = "scores"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

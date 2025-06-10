@@ -4,11 +4,11 @@ from typing import Optional
 from flask_login import UserMixin
 from sqlalchemy import String, Text, Boolean, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import BaseDb
+from app.database import BaseDBClass
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-class ZhiXueUser(BaseDb):
+class ZhiXueUser(BaseDBClass):
     __tablename__ = "zhixue_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -19,7 +19,7 @@ class ZhiXueUser(BaseDb):
     user: Mapped[Optional["User"]] = relationship("User", back_populates="zhixue")
 
 
-class User(UserMixin, BaseDb):
+class User(UserMixin, BaseDBClass):
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
