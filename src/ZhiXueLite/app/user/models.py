@@ -9,6 +9,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 
 class ZhiXueUser(BaseDBClass):
+    """智学网学生账户模型"""
     __tablename__ = "zhixue_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -20,6 +21,7 @@ class ZhiXueUser(BaseDBClass):
 
 
 class User(UserMixin, BaseDBClass):
+    """用户模型"""
     __tablename__ = "users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

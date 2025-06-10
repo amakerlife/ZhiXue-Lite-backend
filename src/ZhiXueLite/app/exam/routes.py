@@ -4,7 +4,6 @@ from functools import wraps
 from sqlalchemy import select, desc
 from app.database import db
 from app.exam.models import Exam, UserExam
-from app.utils.account.student import login_student_session
 from app.task.manager import task_manager
 exam_bp = Blueprint("exam", __name__)
 
@@ -77,4 +76,4 @@ def fetch_exam_list():
         "success": True,
         "task_id": task.id,
         "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
-    }), 201
+    }), 202

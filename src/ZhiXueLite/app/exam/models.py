@@ -5,6 +5,7 @@ from app.database import BaseDBClass
 
 
 class Student(BaseDBClass):
+    """学生信息模型"""
     __tablename__ = "students"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
@@ -27,6 +28,7 @@ class Exam(BaseDBClass):
 
 
 class UserExam(BaseDBClass):
+    """用户考试关联模型"""
     __tablename__ = "user_exams"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
