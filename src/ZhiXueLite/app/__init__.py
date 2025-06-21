@@ -53,7 +53,7 @@ def create_app(config_name=config_name):
             "error": "Rate limit exceeded"
         }
 
-        if hasattr(e, 'retry_after') and e.retry_after:
+        if hasattr(e, "retry_after") and e.retry_after:
             response_data["retry_after"] = e.retry_after
             response_data["message"] = f"请求过于频繁，请在 {e.retry_after} 秒后重试"
 
@@ -72,7 +72,10 @@ def create_app(config_name=config_name):
     @login_manager.unauthorized_handler
     def unauthorized():
         """处理未授权访问 (未登录)"""
-        return jsonify({"message": "Authentication required."}), 401
+        return jsonify({
+            "success": False,
+            "message": "Authentication required."
+        }), 401
 
     # 注册蓝图
     from app.user.routes import user_bp

@@ -14,7 +14,7 @@ from zhixuewang.session import get_basic_session
 from zhixuewang.urls import Url
 
 from app.config import Config
-from app.models import LoginCaptchaError
+from app.models.exceptions import LoginCaptchaError
 
 captcha_api = Config.GEETEST_CAPTCHA_URL
 
@@ -299,9 +299,9 @@ def set_user_session(cookie: str) -> Session | None:
     session = get_basic_session()
 
     try:
-        for item in cookie.split(';'):
-            if '=' in item:
-                name, value = item.strip().split('=', 1)
+        for item in cookie.split(";"):
+            if "=" in item:
+                name, value = item.strip().split("=", 1)
                 session.cookies.set(name, value)
         return session
 

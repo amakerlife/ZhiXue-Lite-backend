@@ -1,7 +1,9 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from sqlalchemy import String, Float, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import BaseDBClass
+if TYPE_CHECKING:
+    from app.models.zhixuedb import School
 
 
 class Student(BaseDBClass):
@@ -22,9 +24,11 @@ class Exam(BaseDBClass):
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[float] = mapped_column(Float)
+    school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))
 
     user_exams: Mapped[List["UserExam"]] = relationship("UserExam", back_populates="exam")
     scores: Mapped[List["Score"]] = relationship("Score", back_populates="exam")
+    school: Mapped["School"] = relationship("School", back_populates="exams")
 
 
 class UserExam(BaseDBClass):
@@ -33,7 +37,7 @@ class UserExam(BaseDBClass):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     zhixue_username: Mapped[str] = mapped_column(String(50))
-    exam_id: Mapped[str] = mapped_column(String(50), ForeignKey('exams.id'))
+    exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"))
 
     exam: Mapped["Exam"] = relationship("Exam", back_populates="user_exams")
 
@@ -51,9 +55,9 @@ class Score(BaseDBClass):
     __tablename__ = "scores"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    student_id: Mapped[str] = mapped_column(String(50), ForeignKey('students.id'))
-    exam_id: Mapped[str] = mapped_column(String(50), ForeignKey('exams.id'))
-    subject_id: Mapped[str] = mapped_column(String(50), ForeignKey('subjects.id'))
+    student_id: Mapped[str] = mapped_column(String(50), ForeignKey("students.id"))
+    exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"))
+    subject_id: Mapped[str] = mapped_column(String(50), ForeignKey("subjects.id"))
     class_name: Mapped[str] = mapped_column(String(50))
 
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 为空时表示原始数据无成绩，下同

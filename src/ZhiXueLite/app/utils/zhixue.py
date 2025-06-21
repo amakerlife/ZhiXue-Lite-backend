@@ -8,15 +8,15 @@ from openpyxl import Workbook
 
 from app.utils.config_loader import config
 from app.utils.login_zhixue import login_student, login_teacher, update_login_status
-from app.models import (
+from models.models import (
     FailedToGetStudentAccountError,
     StudentScoreInfo,
     ZhixueError,
     LoginCaptchaError,
     FailedToGetTeacherAccountError
 )
-from account.student import ExtendedStudentAccount
-from account.teacher import ExtendedTeacherAccount
+from models.student import ExtendedStudentAccount
+from models.teacher import ExtendedTeacherAccount
 
 TEACHER_USERNAMES = config.teachers.teacher_accounts
 TEACHER_PASSWORDS = config.teachers.teacher_passwords

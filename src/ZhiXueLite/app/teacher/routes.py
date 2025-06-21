@@ -3,8 +3,8 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 from sqlalchemy import select
 from app.database import db
-from app.teacher.models import ZhiXueTeacher
-from app.utils.account.teacher import login_teacher
+from app.models.zhixuedb import ZhiXueTeacher
+from app.models.teacher import login_teacher
 teacher_bp = Blueprint("teacher", __name__)
 
 
@@ -28,7 +28,7 @@ def get_teacher_list():
 
     stmt = select(ZhiXueTeacher)
     if query:
-        stmt = stmt.where(ZhiXueTeacher.username.contains(query) | ZhiXueTeacher.school_name.contains(query))
+        stmt = stmt.where(ZhiXueTeacher.username.contains(query) | ZhiXueTeacher.school.name.contains(query))
 
     teachers = db.session.scalars(stmt).all()
 
@@ -39,7 +39,7 @@ def get_teacher_list():
 
     teacher_list = [{
         "username": teacher.username,
-        "school_name": teacher.school_name,
+        "school_name": teacher.school.name,
     } for teacher in paginated_teachers]
 
     return jsonify({
@@ -95,7 +95,7 @@ def add_teacher():
             "message": "教师账号添加成功",
             "teacher": {
                 "username": teacher.username,
-                "school_name": teacher.school_name,
+                "school_name": teacher.school.name,
             }
         }), 201
 
@@ -156,7 +156,7 @@ def get_teacher_detail(teacher_id):
 
     teacher_detail = {
         "username": teacher.username,
-        "school_name": teacher.school_name,
+        "school_name": teacher.school.name,
         "login_method": teacher.login_method,
     }
 

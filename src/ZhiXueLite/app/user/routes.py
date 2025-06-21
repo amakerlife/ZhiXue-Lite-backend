@@ -1,8 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from app.utils.account.student import login_student
+from app.models.student import login_student
 from app.database import db
-from app.user.models import User, ZhiXueUser
+from app.user.models import User
+from app.models.zhixuedb import ZhiXueUser
 from datetime import datetime
 from app import limiter
 from flask_limiter.util import get_remote_address

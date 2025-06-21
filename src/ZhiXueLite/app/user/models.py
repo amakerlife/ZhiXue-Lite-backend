@@ -1,23 +1,12 @@
 from datetime import datetime
-from typing import Optional
-
+from typing import Optional, TYPE_CHECKING
 from flask_login import UserMixin
-from sqlalchemy import String, Text, Boolean, DateTime, Integer, ForeignKey
+from sqlalchemy import String, Boolean, DateTime, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import BaseDBClass
 from werkzeug.security import generate_password_hash, check_password_hash
-
-
-class ZhiXueUser(BaseDBClass):
-    """智学网学生账户模型"""
-    __tablename__ = "zhixue_users"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(String(200), nullable=False)
-    cookie: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-
-    user: Mapped[Optional["User"]] = relationship("User", back_populates="zhixue")
+if TYPE_CHECKING:
+    from app.models.zhixuedb import ZhiXueUser
 
 
 class User(UserMixin, BaseDBClass):
@@ -36,7 +25,7 @@ class User(UserMixin, BaseDBClass):
     last_login_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     zhixue_account_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("zhixue_users.id"), nullable=True)
 
-    zhixue: Mapped[Optional["ZhiXueUser"]] = relationship("ZhiXueUser", back_populates="user")
+    zhixue: Mapped[Optional["ZhiXueUser"]] = relationship("ZhiXueUser", back_populates="users")
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

@@ -1,8 +1,8 @@
 """init
 
-Revision ID: df2fc9140777
+Revision ID: dfb60c7bd851
 Revises: 
-Create Date: 2025-06-21 14:11:21.337555
+Create Date: 2025-06-21 23:47:08.942431
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'df2fc9140777'
+revision = 'dfb60c7bd851'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -33,12 +33,12 @@ def upgrade():
     sa.Column('progress_message', sa.String(length=200), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('exams',
+    op.create_table('schools',
     sa.Column('id', sa.String(length=50), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('created_at', sa.Float(), nullable=False),
+    sa.Column('name', sa.String(length=100), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('id')
+    sa.UniqueConstraint('id'),
+    sa.UniqueConstraint('name')
     )
     op.create_table('students',
     sa.Column('id', sa.String(length=50), nullable=False),
@@ -54,22 +54,33 @@ def upgrade():
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('id')
     )
+    op.create_table('exams',
+    sa.Column('id', sa.String(length=50), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('created_at', sa.Float(), nullable=False),
+    sa.Column('school_id', sa.String(length=50), nullable=False),
+    sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('id')
+    )
     op.create_table('zhixue_teachers',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('username', sa.String(length=80), nullable=False),
     sa.Column('password', sa.String(length=200), nullable=False),
-    sa.Column('cookie', sa.Text(), nullable=True),
+    sa.Column('cookie', sa.Text(), nullable=False),
     sa.Column('login_method', sa.String(length=20), nullable=False),
     sa.Column('school_id', sa.String(length=50), nullable=False),
-    sa.Column('school_name', sa.String(length=100), nullable=False),
+    sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('username')
     )
     op.create_table('zhixue_users',
-    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
     sa.Column('username', sa.String(length=80), nullable=False),
     sa.Column('password', sa.String(length=200), nullable=False),
-    sa.Column('cookie', sa.Text(), nullable=True),
+    sa.Column('cookie', sa.Text(), nullable=False),
+    sa.Column('school_id', sa.String(length=50), nullable=False),
+    sa.ForeignKeyConstraint(['school_id'], ['schools.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('username')
     )
@@ -127,8 +138,9 @@ def downgrade():
     op.drop_table('scores')
     op.drop_table('zhixue_users')
     op.drop_table('zhixue_teachers')
+    op.drop_table('exams')
     op.drop_table('subjects')
     op.drop_table('students')
-    op.drop_table('exams')
+    op.drop_table('schools')
     op.drop_table('background_tasks')
     # ### end Alembic commands ###

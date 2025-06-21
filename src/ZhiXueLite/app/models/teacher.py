@@ -8,7 +8,8 @@ import requests
 from zhixuewang.teacher import TeacherAccount
 
 from app.utils.answersheet import draw_answersheet
-from app.models import ZhixueError, Score, StudentScoreInfo
+from app.models.exceptions import ZhixueError
+from app.models.dataclasses import Score, StudentScoreInfo
 from app.utils.login_zhixue import get_session_by_captcha, set_user_session, update_login_status
 
 

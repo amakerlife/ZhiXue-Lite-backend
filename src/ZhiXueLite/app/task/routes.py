@@ -15,8 +15,8 @@ def create_task():
     创建后台任务
     """
     data = request.get_json()
-    task_type = data.get('task_type')
-    parameters = data.get('parameters', {})
+    task_type = data.get("task_type")
+    parameters = data.get("parameters", {})
 
     if not task_type:
         return jsonify({"success": False, "message": "缺少任务类型"}), 400

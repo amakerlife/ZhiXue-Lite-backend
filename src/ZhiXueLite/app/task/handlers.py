@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.database import db
 from app.exam.models import Exam, UserExam
 from app.user.models import User
-from app.utils.account.student import login_student_session
+from app.models.student import login_student_session
 from app.task.manager import task_manager
 from loguru import logger
 
@@ -96,5 +96,5 @@ def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, An
 
 def register_task_handlers():
     """注册所有任务处理器"""
-    task_manager.register_task_handler('fetch_exam_list', fetch_exam_list_handler)
+    task_manager.register_task_handler("fetch_exam_list", fetch_exam_list_handler)
     logger.info("All task handlers registered successfully.")

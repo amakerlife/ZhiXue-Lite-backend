@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple, cast
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-from app.models import ZhixueError
+from app.models.exceptions import ZhixueError
 
 font_path = "TODO"
 
