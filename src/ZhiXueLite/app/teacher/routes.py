@@ -1,7 +1,7 @@
 from functools import wraps
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
-from sqlalchemy import desc, select
+from sqlalchemy import select
 from app.database import db
 from app.teacher.models import ZhiXueTeacher
 from app.utils.account.teacher import login_teacher
@@ -11,7 +11,7 @@ teacher_bp = Blueprint("teacher", __name__)
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if not current_user.is_admin:
+        if current_user.role != "admin":
             return jsonify({"success": False, "message": "权限不足"}), 403
         return f(*args, **kwargs)
     return decorated_function

@@ -30,16 +30,20 @@ def signup():  # TODO: 添加验证码
     if not all(key in data for key in ("username", "password", "email")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
-    if db.session.execute(db.select(User).filter_by(username=data["username"])).scalar_one_or_none():
+    if db.session.scalar(db.select(User).filter_by(username=data["username"])):
         return jsonify({"success": False, "message": "用户名已被使用"}), 400
-    if db.session.execute(db.select(User).filter_by(email=data["email"])).scalar_one_or_none():
+    if db.session.scalar(db.select(User).filter_by(email=data["email"])):
         return jsonify({"success": False, "message": "邮箱已被使用"}), 400
+
+    role = "user"
+    if db.session.scalar(db.select(User).filter_by(id=1)) is None:
+        role = "admin"
 
     # 创建新用户
     user = User(
         username = data["username"],
         email = data["email"],
-        role = "user",
+        role = role,
         created_at = datetime.utcnow(),
         registration_ip = get_remote_address(),
         last_login = datetime.utcnow(),
@@ -63,7 +67,7 @@ def login():
     if not all(key in data for key in ("username", "password")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
-    user = db.session.execute(db.select(User).filter_by(username=data["username"])).scalar_one_or_none()
+    user = db.session.scalar(db.select(User).filter_by(username=data["username"]))
     if not user or not user.check_password(data["password"]):
         return jsonify({"success": False, "message": "用户名或密码错误"}), 401
 
@@ -172,8 +176,7 @@ def connect_zhixue():
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库
-    zhixue_record = db.session.execute(db.select(ZhiXueUser).filter_by(
-        username=zhixue_username)).scalar_one_or_none()
+    zhixue_record = db.session.scalar(db.select(ZhiXueUser).filter_by(username=zhixue_username))
     if zhixue_record:
         zhixue_record.cookie = zhixue_account.get_cookie()
     else:

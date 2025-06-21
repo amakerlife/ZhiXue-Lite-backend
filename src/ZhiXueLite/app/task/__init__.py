@@ -4,9 +4,9 @@ from .handlers import register_task_handlers
 from .routes import task_bp
 
 __all__ = [
-    'BackgroundTask',
-    'TaskStatus',
-    'task_manager',
-    'register_task_handlers',
-    'task_bp'
+    "BackgroundTask",
+    "TaskStatus",
+    "task_manager",
+    "register_task_handlers",
+    "task_bp"
 ]

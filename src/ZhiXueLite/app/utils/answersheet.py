@@ -4,10 +4,9 @@ from typing import Dict, List, Tuple, cast
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
-from app.utils.config_loader import config
 from app.models import ZhixueError
 
-font_path = config.font_path
+font_path = "TODO"
 
 def get_size(text: str, font: ImageFont.FreeTypeFont) -> Tuple[float, float]:
     """获取文本的宽度和高度"""

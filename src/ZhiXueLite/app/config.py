@@ -1,7 +1,11 @@
 from datetime import timedelta
 import os
 
+from dotenv import load_dotenv
+
 from app.database import db
+
+load_dotenv()
 
 
 class Config:
@@ -38,8 +42,7 @@ class Config:
 class DevelopmentConfig(Config):
     DEBUG = True
     SECRET_KEY = os.environ.get("DEV_SECRET_KEY") or "dev"
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DEV_DATABASE_URL") or \
-        "sqlite:///data.db"
+    SQLALCHEMY_DATABASE_URI = os.environ["DEV_DATABASE_URL"]
 
 
 class ProductionConfig(Config):

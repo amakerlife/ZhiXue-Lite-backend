@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import cast
 from flask import Flask, jsonify
 from flask_limiter import Limiter
@@ -11,7 +12,8 @@ from app.config import config
 from app.utils.logger import setup_logger
 import app.user.models
 import app.exam.models
-import app.task.models  # 导入模型以确保创建表
+import app.task.models
+import app.teacher.models
 
 config_name = os.getenv("FLASK_ENV") or "default"
 
@@ -76,30 +78,31 @@ def create_app(config_name=config_name):
     from app.user.routes import user_bp
     from app.exam.routes import exam_bp
     from app.task.routes import task_bp
+    from app.teacher.routes import teacher_bp
 
     app.register_blueprint(user_bp, url_prefix="/user")
     app.register_blueprint(exam_bp, url_prefix="/exam")
     app.register_blueprint(task_bp, url_prefix="/task")
+    app.register_blueprint(teacher_bp, url_prefix="/teacher")
 
     # 初始化任务管理器
-    from app.task.manager import task_manager
-    from app.task.handlers import register_task_handlers
+    is_cli_command = len(sys.argv) > 1 and any(cmd in sys.argv for cmd in ["init-db", "db", "shell", "routes"])
+    if not is_cli_command:
+        from app.task.manager import task_manager
+        from app.task.handlers import register_task_handlers
 
-    task_manager.init_app(app)
-    register_task_handlers()
-
-    # 启动任务管理器
-    task_manager.start()
+        task_manager.init_app(app)
+        register_task_handlers()
+        task_manager.start()
 
     @app.cli.command("init-db")
     def init_db_command():
-        """清除所有数据并初始化数据库"""
+        """清除所有数据"""
         if not app.config["DEBUG"]:
             print("This command is strongly discouraged in production environments.")
         with app.app_context():
             if input("Are you sure you want to drop ALL tables? (y/N): ").lower() == "y":
                 db.drop_all()
-                db.create_all()
                 print("Initialized the database and created the tables.")
             else:
                 print("Database initialization canceled.")
