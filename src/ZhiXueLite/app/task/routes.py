@@ -4,6 +4,7 @@ from sqlalchemy import select, desc
 from app.database import db
 from app.task.models import BackgroundTask, TaskStatus
 from app.task.manager import task_manager
+from app.utils.paginate import paginated_json
 
 task_bp = Blueprint("task", __name__)
 
@@ -72,30 +73,15 @@ def get_user_tasks():
         except ValueError:
             return jsonify({"success": False, "message": "无效的状态值"}), 400
 
-    stmt = stmt.order_by(desc(BackgroundTask.created_at))
+    tasks = db.session.scalars(stmt.order_by(desc(BackgroundTask.created_at))).all()
 
-    # 执行查询并分页
-    tasks = db.session.scalars(stmt).all()
-
-    # 手动分页
-    total = len(tasks)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_tasks = tasks[start:end]
-
-    task_list = [task.to_dict() for task in paginated_tasks]
+    paginated_tasks = paginated_json(tasks, page, per_page)
+    task_list = [task.to_dict() for task in paginated_tasks["items"]]
 
     return jsonify({
         "success": True,
         "tasks": task_list,
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "pages": (total + per_page - 1) // per_page,
-            "has_prev": page > 1,
-            "has_next": end < total
-        }
+        "pagination": paginated_tasks["pagination"]
     }), 200
 
 

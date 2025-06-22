@@ -27,6 +27,7 @@ class ZhiXueTeacher(BaseDBClass):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String(200), nullable=False)
+    realname: Mapped[str] = mapped_column(String(80), nullable=False)
     cookie: Mapped[str] = mapped_column(Text, nullable=False)
     login_method: Mapped[str] = mapped_column(String(20), nullable=False, default="changyan")
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))
@@ -41,8 +42,18 @@ class ZhiXueUser(BaseDBClass):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String(200), nullable=False)
+    realname: Mapped[str] = mapped_column(String(80), nullable=False)
     cookie: Mapped[str] = mapped_column(Text, nullable=False)
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"), nullable=False)
 
     users: Mapped[Optional[list["User"]]] = relationship("User", back_populates="zhixue")
     school: Mapped["School"] = relationship("School", back_populates="students")
+
+    def to_dict_all(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "realname": self.realname,
+            "school_id": self.school_id,
+            "school_name": self.school.name if self.school else None
+        }

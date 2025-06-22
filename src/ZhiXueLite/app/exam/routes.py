@@ -5,6 +5,7 @@ from sqlalchemy import select, desc
 from app.database import db
 from app.exam.models import Exam, UserExam
 from app.task.manager import task_manager
+from app.utils.paginate import paginated_json
 exam_bp = Blueprint("exam", __name__)
 
 
@@ -35,31 +36,17 @@ def get_exam_list():
     stmt = select(UserExam).where(UserExam.zhixue_username == current_user.zhixue.username).join(Exam)
     if query:
         stmt = stmt.where(Exam.name.contains(query))
-    stmt = stmt.order_by(desc(Exam.created_at))
 
-    # 执行查询并分页
-    exams = db.session.scalars(stmt).all()
+    exams = db.session.scalars(stmt.order_by(desc(Exam.created_at))).all()
 
-    # 手动分页
-    total = len(exams)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_exams = exams[start:end]
-
+    paginated_exams = paginated_json(exams, page, per_page)
     exam_list = [{"id": item.exam.id, "name": item.exam.name, "created_at": item.exam.created_at}
-                 for item in paginated_exams]
+                 for item in paginated_exams["items"]]
 
     return jsonify({
         "success": True,
         "exams": exam_list,
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "pages": (total + per_page - 1) // per_page,
-            "has_prev": page > 1,
-            "has_next": end < total
-        }
+        "pagination": paginated_exams["pagination"]
     }), 200
 
 

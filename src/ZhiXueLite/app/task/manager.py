@@ -51,8 +51,7 @@ class TaskManager:
             raise RuntimeError("TaskManager not initialized with app")
 
         with self.app.app_context():
-            stmt = select(BackgroundTask).where(BackgroundTask.id == task_id)
-            return db.session.scalar(stmt)
+            return db.session.get(BackgroundTask, task_id)
 
     def update_task_status(self, task_id: str, status: TaskStatus, **kwargs):
         """更新任务状态"""
@@ -60,8 +59,7 @@ class TaskManager:
             raise RuntimeError("TaskManager not initialized with app")
 
         with self.app.app_context():
-            stmt = select(BackgroundTask).where(BackgroundTask.id == task_id)
-            task = db.session.scalar(stmt)
+            task = db.session.get(BackgroundTask, task_id)
 
             if task:
                 task.status_enum = status
@@ -86,8 +84,7 @@ class TaskManager:
 
         with self.app.app_context():
             try:
-                stmt = select(BackgroundTask).where(BackgroundTask.id == task_id)
-                task = db.session.scalar(stmt)
+                task = db.session.get(BackgroundTask, task_id)
 
                 if task:
                     task.progress = progress

@@ -18,8 +18,7 @@ def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, An
         task_manager.update_task_progress(task_id, 10, "正在获取用户信息...")
 
         # 获取用户信息
-        stmt = select(User).where(User.id == user_id)
-        user = db.session.scalar(stmt)
+        user = db.session.get(User, user_id)
         if not user or not user.zhixue:
             raise ValueError("User not bound to Zhixue account")
 
@@ -37,20 +36,18 @@ def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, An
 
         task_manager.update_task_progress(task_id, 50, "正在处理考试数据...")
 
-        # 将考试列表存入数据库
         processed_exams = []
         total_exams = len(exams)
 
         for i, exam in enumerate(exams):
             # 检查考试是否已存在
-            stmt = select(Exam).where(Exam.id == exam.id)
-            existing_exam = db.session.scalar(stmt)
-
+            existing_exam = db.session.get(Exam, exam.id)
             if not existing_exam:
                 new_exam = Exam(
                     id=exam.id,
                     name=exam.name,
-                    created_at=exam.create_time
+                    created_at=exam.create_time,
+                    school_id=user.zhixue.school_id
                 )
                 db.session.add(new_exam)
                 db.session.flush()
@@ -71,6 +68,7 @@ def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, An
                 processed_exams.append({
                     "id": exam.id,
                     "name": exam.name,
+                    "school_id": user.zhixue.school_id,
                     "created_at": exam.create_time if isinstance(exam.create_time, (int, float)) else None
                 })
 

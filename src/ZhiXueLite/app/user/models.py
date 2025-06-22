@@ -43,4 +43,20 @@ class User(UserMixin, BaseDBClass):
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "zhixue_username": self.zhixue.username if self.zhixue else None,
+            "zhixue_realname": self.zhixue.realname if self.zhixue else None,
+            "zhixue_school": self.zhixue.school.name if self.zhixue else None,
+        }
+
+    def to_dict_all(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "email": self.email,
+            "role": self.role,
+            "is_active": self.is_active,
+            "created_at": self.created_at.isoformat(),
+            "last_login": self.last_login.isoformat() if self.last_login else None,
+            "registration_ip": self.registration_ip,
+            "last_login_ip": self.last_login_ip,
+            "zhixue_account_id": self.zhixue_account_id,
         }

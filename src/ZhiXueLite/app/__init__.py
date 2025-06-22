@@ -13,7 +13,7 @@ from app.utils.logger import setup_logger
 import app.user.models
 import app.exam.models
 import app.task.models
-import app.teacher.models
+import app.models.zhixuedb
 
 config_name = os.getenv("FLASK_ENV") or "default"
 
@@ -82,11 +82,13 @@ def create_app(config_name=config_name):
     from app.exam.routes import exam_bp
     from app.task.routes import task_bp
     from app.teacher.routes import teacher_bp
+    from app.admin.routes import admin_bp
 
     app.register_blueprint(user_bp, url_prefix="/user")
     app.register_blueprint(exam_bp, url_prefix="/exam")
     app.register_blueprint(task_bp, url_prefix="/task")
     app.register_blueprint(teacher_bp, url_prefix="/teacher")
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
     # 初始化任务管理器
     is_cli_command = len(sys.argv) > 1 and any(cmd in sys.argv for cmd in ["init-db", "db", "shell", "routes"])

@@ -1,10 +1,12 @@
 from functools import wraps
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
+from loguru import logger
 from sqlalchemy import select
 from app.database import db
-from app.models.zhixuedb import ZhiXueTeacher
+from app.models.zhixuedb import School, ZhiXueTeacher
 from app.models.teacher import login_teacher
+from app.utils.paginate import paginated_json
 teacher_bp = Blueprint("teacher", __name__)
 
 
@@ -32,27 +34,18 @@ def get_teacher_list():
 
     teachers = db.session.scalars(stmt).all()
 
-    total = len(teachers)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_teachers = teachers[start:end]
+    paginated_teachers = paginated_json(teachers, page, per_page)
 
     teacher_list = [{
         "username": teacher.username,
+        "realname": teacher.realname,
         "school_name": teacher.school.name,
-    } for teacher in paginated_teachers]
+    } for teacher in paginated_teachers["items"]]
 
     return jsonify({
         "success": True,
         "teachers": teacher_list,
-        "pagination": {
-            "page": page,
-            "per_page": per_page,
-            "total": total,
-            "pages": (total + per_page - 1) // per_page,
-            "has_prev": page > 1,
-            "has_next": end < total
-        }
+        "pagination": paginated_teachers["pagination"]
     }), 200
 
 
@@ -78,12 +71,19 @@ def add_teacher():
         )
 
         # 创建教师记录
+        if not db.session.get(School, teacher_account.school.id):
+            school = School(
+                id=teacher_account.school.id,
+                name=teacher_account.school.name
+            )
+            db.session.add(school)
+            db.session.flush()
         teacher = ZhiXueTeacher(
             username=data["username"],
             password=data["password"],
+            realname=teacher_account.name,
             cookie=teacher_account.get_cookie(),
             school_id=teacher_account.school.id,
-            school_name=teacher_account.school.name,
             login_method=data.get("login_method", "changyan"),
         )
 
@@ -95,6 +95,7 @@ def add_teacher():
             "message": "教师账号添加成功",
             "teacher": {
                 "username": teacher.username,
+                "realname": teacher.realname,
                 "school_name": teacher.school.name,
             }
         }), 201
@@ -127,7 +128,9 @@ def update_teacher(teacher_id):
                 teacher.login_method
             )
             teacher.cookie = teacher_account.get_cookie()
+            teacher.realname = teacher_account.name
         except Exception as e:
+            db.session.rollback()
             return jsonify({"success": False, "message": "教师账号验证失败"}), 400
 
     db.session.commit()

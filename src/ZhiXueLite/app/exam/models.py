@@ -24,7 +24,7 @@ class Exam(BaseDBClass):
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[float] = mapped_column(Float)
-    school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))
+    school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))  # TODO: 支持联考
 
     user_exams: Mapped[List["UserExam"]] = relationship("UserExam", back_populates="exam")
     scores: Mapped[List["Score"]] = relationship("Score", back_populates="exam")
