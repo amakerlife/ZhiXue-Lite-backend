@@ -3,8 +3,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import select
 from app.models.student import login_student
 from app.database import db
-from app.user.models import User
-from app.models.zhixuedb import School, ZhiXueUser
+from app.database.models import User, School, ZhiXueStudentAccount
 from datetime import datetime
 from app import limiter
 from flask_limiter.util import get_remote_address
@@ -43,13 +42,13 @@ def signup():  # TODO: 添加验证码
 
     # 创建新用户
     user = User(
-        username = data["username"],
-        email = data["email"],
-        role = role,
-        created_at = datetime.utcnow(),
-        registration_ip = get_remote_address(),
-        last_login = datetime.utcnow(),
-        last_login_ip = get_remote_address()
+        username=data["username"],
+        email=data["email"],
+        role=role,
+        created_at=datetime.utcnow(),
+        registration_ip=get_remote_address(),
+        last_login=datetime.utcnow(),
+        last_login_ip=get_remote_address()
     )
     user.set_password(data["password"])
 
@@ -178,7 +177,8 @@ def connect_zhixue():
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库
-    zhixue_record = db.session.scalar(select(ZhiXueUser).where(ZhiXueUser.username == zhixue_username))
+    zhixue_record = db.session.scalar(select(ZhiXueStudentAccount).where(
+        ZhiXueStudentAccount.username == zhixue_username))
     if zhixue_record:
         zhixue_record.password = zhixue_password
         zhixue_record.cookie = zhixue_account.get_cookie()
@@ -191,7 +191,7 @@ def connect_zhixue():
             )
             db.session.add(school_record)
             db.session.flush()
-        zhixue_record = ZhiXueUser(
+        zhixue_record = ZhiXueStudentAccount(
             username=zhixue_username,
             password=zhixue_password,  # TODO: 存储加密后的密码
             realname=zhixue_account.name,

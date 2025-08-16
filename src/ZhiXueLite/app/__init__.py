@@ -10,10 +10,7 @@ from flask_migrate import Migrate
 from app.database import db, init_db
 from app.config import config
 from app.utils.logger import setup_logger
-import app.user.models
-import app.exam.models
-import app.task.models
-import app.models.zhixuedb
+import app.database.models  # 确保模型被导入以便 SQLAlchemy 可以识别它们
 
 config_name = os.getenv("FLASK_ENV") or "default"
 
@@ -65,7 +62,7 @@ def create_app(config_name=config_name):
     @login_manager.user_loader
     def load_user(user_id):
         """Flask-Login 要求的回调函数，用于从 ID 加载用户"""
-        from app.user.models import User
+        from app.database.models import User
 
         return db.session.get(User, int(user_id))
 
@@ -80,25 +77,13 @@ def create_app(config_name=config_name):
     # 注册蓝图
     from app.user.routes import user_bp
     from app.exam.routes import exam_bp
-    from app.task.routes import task_bp
     from app.teacher.routes import teacher_bp
     from app.admin.routes import admin_bp
 
     app.register_blueprint(user_bp, url_prefix="/user")
     app.register_blueprint(exam_bp, url_prefix="/exam")
-    app.register_blueprint(task_bp, url_prefix="/task")
     app.register_blueprint(teacher_bp, url_prefix="/teacher")
     app.register_blueprint(admin_bp, url_prefix="/admin")
-
-    # 初始化任务管理器
-    is_cli_command = len(sys.argv) > 1 and any(cmd in sys.argv for cmd in ["init-db", "db", "shell", "routes"])
-    if not is_cli_command:
-        from app.task.manager import task_manager
-        from app.task.handlers import register_task_handlers
-
-        task_manager.init_app(app)
-        register_task_handlers()
-        task_manager.start()
 
     @app.cli.command("init-db")
     def init_db_command():

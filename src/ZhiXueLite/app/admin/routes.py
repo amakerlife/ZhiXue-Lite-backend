@@ -2,8 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from sqlalchemy import select
 from app.database import db
-from app.models.zhixuedb import School, ZhiXueUser
-from app.user.models import User
+from app.database.models import School, ZhiXueStudentAccount, User
 from app.utils.paginate import paginated_json
 
 admin_bp = Blueprint("admin", __name__)
@@ -67,13 +66,13 @@ def list_zhixue_accounts():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(ZhiXueUser)
+    stmt = select(ZhiXueStudentAccount)
     if query:
-        stmt = stmt.where(ZhiXueUser.username.contains(query))
+        stmt = stmt.where(ZhiXueStudentAccount.username.contains(query))
 
     zhixue_accounts = db.session.scalars(stmt).all()
     paginated_accounts = paginated_json(zhixue_accounts, page, per_page)
-    account_list = [user.to_dict_all() for user in paginated_accounts["items"]]
+    account_list = [account.to_dict_all() for account in paginated_accounts["items"]]
 
     return jsonify({
         "success": True,

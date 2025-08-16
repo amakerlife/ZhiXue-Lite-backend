@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Dict
 
 
 @dataclass
@@ -20,7 +19,7 @@ class StudentScoreInfo():
     all_score: str
     class_rank: str
     school_rank: str
-    scores: Dict[str, Score] = field(default_factory=dict)
+    scores: dict[str, Score] = field(default_factory=dict)
 
     def __init__(self, **data):
         super().__init__(**data)

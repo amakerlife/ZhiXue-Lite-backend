@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional, Callable
 from flask import Flask
 from sqlalchemy import select
 from app.database import db
-from app.task.models import BackgroundTask, TaskStatus
+from app.database.models import BackgroundTask, TaskStatus
 from loguru import logger
 
 
@@ -42,7 +42,7 @@ class TaskManager:
             )
             db.session.add(task)
             db.session.commit()
-            logger.info(f"Task created: {task.id} - {task_type}")
+            logger.info(f"Task created: {task.uuid} - {task_type}")
             return task
 
     def get_task(self, task_id: str) -> Optional[BackgroundTask]:
@@ -127,8 +127,8 @@ class TaskManager:
 
         with self.app.app_context():
             try:
-                logger.info(f"Starting task processing: {task.id} - {task.task_type}")
-                self.update_task_status(task.id, TaskStatus.PROCESSING)
+                logger.info(f"Starting task processing: {task.uuid} - {task.task_type}")
+                self.update_task_status(task.uuid, TaskStatus.PROCESSING)
 
                 # 获取任务处理器
                 handler = self.task_handlers.get(task.task_type)
@@ -139,16 +139,16 @@ class TaskManager:
                 result = handler(task.id, task.user_id, parameters)
 
                 self.update_task_status(
-                    task.id,
+                    task.uuid,
                     TaskStatus.COMPLETED,
                     result=json.dumps(result) if result else None,
                     progress=100
                 )
-                logger.info(f"Task finished: {task.id} - {task.task_type}")
+                logger.info(f"Task finished: {task.uuid} - {task.task_type}")
             except Exception as e:
-                logger.error(f"Task failed: {task.id} - {str(e)}")
+                logger.error(f"Task failed: {task.uuid} - {str(e)}")
                 self.update_task_status(
-                    task.id,
+                    task.uuid,
                     TaskStatus.FAILED,
                     error_message=str(e)
                 )

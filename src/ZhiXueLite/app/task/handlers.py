@@ -3,14 +3,13 @@ import time
 from typing import Dict, Any
 from sqlalchemy import select
 from app.database import db
-from app.exam.models import Exam, UserExam
-from app.user.models import User
+from app.database.models import Exam, UserExam, User
 from app.models.student import login_student_session
 from app.task.manager import task_manager
 from loguru import logger
 
 
-def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, Any]):
+def fetch_exam_list_handler(task_id: int, user_id: int, parameters: Dict[str, Any]):
     """
     拉取考试列表的任务处理器
     """
@@ -54,7 +53,7 @@ def fetch_exam_list_handler(task_id: str, user_id: int, parameters: Dict[str, An
 
             # 检查用户考试记录是否已存在
             stmt = select(UserExam).where(
-                (UserExam.zhixue_username == user.zhixue.username) &
+                (UserExam.zhixue_id == user.zhixue.id) &
                 (UserExam.exam_id == exam.id)
             )
             user_exam = db.session.scalar(stmt)

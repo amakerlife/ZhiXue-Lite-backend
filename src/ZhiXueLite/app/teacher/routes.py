@@ -4,7 +4,7 @@ from flask_login import current_user, login_required
 from loguru import logger
 from sqlalchemy import select
 from app.database import db
-from app.models.zhixuedb import School, ZhiXueTeacher
+from app.database.models import School, ZhiXueTeacherAccount
 from app.models.teacher import login_teacher
 from app.utils.paginate import paginated_json
 teacher_bp = Blueprint("teacher", __name__)
@@ -28,9 +28,10 @@ def get_teacher_list():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(ZhiXueTeacher)
+    stmt = select(ZhiXueTeacherAccount)
     if query:
-        stmt = stmt.where(ZhiXueTeacher.username.contains(query) | ZhiXueTeacher.school.name.contains(query))
+        stmt = stmt.where(ZhiXueTeacherAccount.username.contains(query) |
+                          ZhiXueTeacherAccount.school.name.contains(query))
 
     teachers = db.session.scalars(stmt).all()
 
@@ -59,7 +60,8 @@ def add_teacher():
     if not all(key in data for key in ("username", "password")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
-    existing_teacher = db.session.scalar(select(ZhiXueTeacher).where(ZhiXueTeacher.username == data["username"]))
+    existing_teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(
+        ZhiXueTeacherAccount.username == data["username"]))
     if existing_teacher:
         return jsonify({"success": False, "message": "该教师账号已存在"}), 400
 
@@ -78,7 +80,7 @@ def add_teacher():
             )
             db.session.add(school)
             db.session.flush()
-        teacher = ZhiXueTeacher(
+        teacher = ZhiXueTeacherAccount(
             username=data["username"],
             password=data["password"],
             realname=teacher_account.name,
@@ -110,7 +112,7 @@ def add_teacher():
 @admin_required
 def update_teacher(teacher_id):
     """更新教师账号"""
-    teacher = db.get_or_404(ZhiXueTeacher, teacher_id)
+    teacher = db.get_or_404(ZhiXueTeacherAccount, teacher_id)
     data = request.get_json()
 
     allowed_fields = ["password", "login_method", "is_active"]
@@ -142,7 +144,7 @@ def update_teacher(teacher_id):
 @admin_required
 def delete_teacher(teacher_id):
     """删除教师账号"""
-    teacher = db.get_or_404(ZhiXueTeacher, teacher_id)
+    teacher = db.get_or_404(ZhiXueTeacherAccount, teacher_id)
 
     db.session.delete(teacher)
     db.session.commit()
@@ -155,7 +157,7 @@ def delete_teacher(teacher_id):
 @admin_required
 def get_teacher_detail(teacher_id):
     """获取教师账号详情"""
-    teacher = db.get_or_404(ZhiXueTeacher, teacher_id)
+    teacher = db.get_or_404(ZhiXueTeacherAccount, teacher_id)
 
     teacher_detail = {
         "username": teacher.username,

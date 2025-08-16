@@ -3,8 +3,7 @@ from flask_login import login_required, current_user
 from functools import wraps
 from sqlalchemy import select, desc
 from app.database import db
-from app.exam.models import Exam, UserExam
-from app.task.manager import task_manager
+from app.database.models import BackgroundTask, Exam, UserExam
 from app.utils.paginate import paginated_json
 exam_bp = Blueprint("exam", __name__)
 
@@ -33,7 +32,7 @@ def get_exam_list():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(UserExam).where(UserExam.zhixue_username == current_user.zhixue.username).join(Exam)
+    stmt = select(UserExam).where(UserExam.zhixue_id == current_user.zhixue.id).join(Exam)
     if query:
         stmt = stmt.where(Exam.name.contains(query))
 
@@ -57,10 +56,15 @@ def fetch_exam_list():
     """
     从源服务器拉取当前学生的考试列表
     """
-    task = task_manager.create_task("fetch_exam_list", current_user.id)
+    task = BackgroundTask(
+        task_type = "fetch_exam_list",
+        user_id = current_user.id,
+    )
+    db.session.add(task)
+    db.session.commit()
 
     return jsonify({
         "success": True,
-        "task_id": task.id,
+        "task_id": task.uuid,
         "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
     }), 202
