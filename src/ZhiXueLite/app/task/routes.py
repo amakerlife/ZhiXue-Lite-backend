@@ -2,46 +2,22 @@ from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from sqlalchemy import select, desc
 from app.database import db
-from app.task.models import BackgroundTask, TaskStatus
-from app.task.manager import task_manager
+from app.database.models import BackgroundTask, TaskStatus
 from app.utils.paginate import paginated_json
+from . import repository as task_repo
+
 
 task_bp = Blueprint("task", __name__)
 
 
-@task_bp.route("/create", methods=["POST"])
+@task_bp.route("/status/<string:task_uuid>", methods=["GET"])
 @login_required
-def create_task():
-    """
-    创建后台任务
-    """
-    data = request.get_json()
-    task_type = data.get("task_type")
-    parameters = data.get("parameters", {})
-
-    if not task_type:
-        return jsonify({"success": False, "message": "缺少任务类型"}), 400
-
-    if task_type not in task_manager.task_handlers:
-        return jsonify({"success": False, "message": "不支持的任务类型"}), 400
-
-    task = task_manager.create_task(task_type, current_user.id, parameters)
-
-    return jsonify({
-        "success": True,
-        "task_id": task.id,
-        "message": "任务已创建"
-    }), 201
-
-
-@task_bp.route("/status/<string:task_id>", methods=["GET"])
-@login_required
-def get_task_status(task_id):
+def get_task_status(task_uuid):
     """
     获取任务状态
     """
     stmt = select(BackgroundTask).where(
-        (BackgroundTask.id == task_id) & (BackgroundTask.user_id == current_user.id)
+        (BackgroundTask.uuid == task_uuid) & (BackgroundTask.user_id == current_user.id)
     )
     task = db.session.scalar(stmt)
 
@@ -85,14 +61,14 @@ def get_user_tasks():
     }), 200
 
 
-@task_bp.route("/cancel/<string:task_id>", methods=["POST"])
+@task_bp.route("/cancel/<string:task_uuid>", methods=["POST"])
 @login_required
-def cancel_task(task_id):
+def cancel_task(task_uuid):
     """
     取消任务（仅限待处理状态的任务）
     """
     stmt = select(BackgroundTask).where(
-        (BackgroundTask.id == task_id) & (BackgroundTask.user_id == current_user.id)
+        (BackgroundTask.uuid == task_uuid) & (BackgroundTask.user_id == current_user.id)
     )
     task = db.session.scalar(stmt)
 
@@ -102,6 +78,6 @@ def cancel_task(task_id):
     if task.status != TaskStatus.PENDING.value:
         return jsonify({"success": False, "message": "只能取消待处理的任务"}), 400
 
-    task_manager.update_task_status(task_id, TaskStatus.FAILED, error_message="用户取消")
+    task_repo.update_task_status(task_uuid, TaskStatus.FAILED, error_message="用户取消")
 
     return jsonify({"success": True, "message": "任务已取消"}), 200

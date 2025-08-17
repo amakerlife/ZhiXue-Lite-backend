@@ -1,46 +1,44 @@
-import json
-import time
-from typing import Dict, Any
+from typing import Any
+
 from sqlalchemy import select
-from app.database import db
+from sqlalchemy.orm import Session
+
 from app.database.models import Exam, UserExam, User
 from app.models.student import login_student_session
-from app.task.manager import task_manager
+from task_worker.repository import update_task_progress
 from loguru import logger
 
 
-def fetch_exam_list_handler(task_id: int, user_id: int, parameters: Dict[str, Any]):
+def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parameters: dict[str, Any]):
     """
     拉取考试列表的任务处理器
     """
     try:
-        task_manager.update_task_progress(task_id, 10, "正在获取用户信息...")
+        update_task_progress(task_id, 10, "正在获取用户信息...")
 
         # 获取用户信息
-        user = db.session.get(User, user_id)
+        user = session.get(User, user_id)
         if not user or not user.zhixue:
             raise ValueError("User not bound to Zhixue account")
 
-        task_manager.update_task_progress(task_id, 20, "正在登录智学网...")        # 检查cookie是否存在
+        update_task_progress(task_id, 20, "正在登录智学网...")
         if not user.zhixue.cookie:
             raise ValueError("User cookie is empty")
         student_account = login_student_session(user.zhixue.cookie)
         user.zhixue.cookie = student_account.get_cookie()
-        db.session.commit()
+        session.commit()
 
-        time.sleep(10)
-
-        task_manager.update_task_progress(task_id, 40, "正在拉取考试数据...")
+        update_task_progress(task_id, 40, "正在拉取考试数据...")
         exams = student_account.get_exams()
 
-        task_manager.update_task_progress(task_id, 50, "正在处理考试数据...")
+        update_task_progress(task_id, 50, "正在处理考试数据...")
 
         processed_exams = []
         total_exams = len(exams)
 
         for i, exam in enumerate(exams):
             # 检查考试是否已存在
-            existing_exam = db.session.get(Exam, exam.id)
+            existing_exam = session.get(Exam, exam.id)
             if not existing_exam:
                 new_exam = Exam(
                     id=exam.id,
@@ -48,22 +46,22 @@ def fetch_exam_list_handler(task_id: int, user_id: int, parameters: Dict[str, An
                     created_at=exam.create_time,
                     school_id=user.zhixue.school_id
                 )
-                db.session.add(new_exam)
-                db.session.flush()
+                session.add(new_exam)
+                session.flush()
 
             # 检查用户考试记录是否已存在
             stmt = select(UserExam).where(
                 (UserExam.zhixue_id == user.zhixue.id) &
                 (UserExam.exam_id == exam.id)
             )
-            user_exam = db.session.scalar(stmt)
+            user_exam = session.scalar(stmt)
 
             if not user_exam:
                 new_user_exam = UserExam(
                     zhixue_username=user.zhixue.username,
                     exam_id=exam.id
                 )
-                db.session.add(new_user_exam)
+                session.add(new_user_exam)
                 processed_exams.append({
                     "id": exam.id,
                     "name": exam.name,
@@ -72,15 +70,15 @@ def fetch_exam_list_handler(task_id: int, user_id: int, parameters: Dict[str, An
                 })
 
             progress = 50 + (i + 1) / total_exams * 49
-            task_manager.update_task_progress(
+            update_task_progress(
                 task_id,
                 int(progress),
                 f"已处理 {i + 1}/{total_exams} 个考试"
             )
 
-        db.session.commit()
+        session.commit()
 
-        task_manager.update_task_progress(task_id, 100, "任务完成")
+        update_task_progress(task_id, 100, "任务完成")
         return {
             "total_exams": len(processed_exams),
             "exams": processed_exams
@@ -89,9 +87,3 @@ def fetch_exam_list_handler(task_id: int, user_id: int, parameters: Dict[str, An
     except Exception as e:
         logger.error(f"Fetch exam list handler failed: {str(e)}")
         raise
-
-
-def register_task_handlers():
-    """注册所有任务处理器"""
-    task_manager.register_task_handler("fetch_exam_list", fetch_exam_list_handler)
-    logger.info("All task handlers registered successfully.")

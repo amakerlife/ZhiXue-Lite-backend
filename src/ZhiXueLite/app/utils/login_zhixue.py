@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Dict, Tuple
+from typing import Tuple
 
 import requests
 from loguru import logger
@@ -39,7 +39,7 @@ def gen_encrypted_password(password: str) -> str:
     return password
 
 
-def gen_captcha_data(session: requests.Session) -> Dict:
+def gen_captcha_data(session: requests.Session) -> dict:
     """
     获取验证码数据
 
@@ -50,7 +50,7 @@ def gen_captcha_data(session: requests.Session) -> Dict:
         LoginCaptchaError: 获取验证码失败
 
     Returns:
-        Dict: 验证码数据
+        dict: 验证码数据
     """
     logger.info("Getting captcha")
     captcha_data = {}
@@ -72,7 +72,7 @@ def gen_captcha_data(session: requests.Session) -> Dict:
 
 
 def login_via_changyan(
-    username: str, password: str, captcha_data: Dict, session: requests.Session
+    username: str, password: str, captcha_data: dict, session: requests.Session
 ) -> Tuple[str, Session]:
     """
     通过畅言登录
@@ -80,7 +80,7 @@ def login_via_changyan(
     Args:
         username (str): 用户名
         password (str): 密码（encrypted）
-        captcha_data (Dict): 验证码数据
+        captcha_data (dict): 验证码数据
         session (requests.Session): Session
 
     Raises:
@@ -118,7 +118,7 @@ def login_via_changyan(
 
 
 def login_via_zhixue(
-    username: str, password: str, captcha_data: Dict, session: requests.Session
+    username: str, password: str, captcha_data: dict, session: requests.Session
 ) -> Tuple[str, Session]:
     """
     通过智学网登录
@@ -126,7 +126,7 @@ def login_via_zhixue(
     Args:
         username (str): 用户名
         password (str): 密码（unencrypted）
-        captcha_data (Dict): 验证码数据
+        captcha_data (dict): 验证码数据
         session (requests.Session): Session
 
     Raises:

@@ -4,6 +4,7 @@ from functools import wraps
 from sqlalchemy import select, desc
 from app.database import db
 from app.database.models import BackgroundTask, Exam, UserExam
+from app.task.repository import create_task
 from app.utils.paginate import paginated_json
 exam_bp = Blueprint("exam", __name__)
 
@@ -56,13 +57,10 @@ def fetch_exam_list():
     """
     从源服务器拉取当前学生的考试列表
     """
-    task = BackgroundTask(
-        task_type = "fetch_exam_list",
-        user_id = current_user.id,
+    task = create_task(
+        task_type="fetch_exam_list",
+        user_id=current_user.id,
     )
-    db.session.add(task)
-    db.session.commit()
-
     return jsonify({
         "success": True,
         "task_id": task.uuid,

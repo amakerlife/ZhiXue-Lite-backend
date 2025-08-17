@@ -35,7 +35,7 @@ class ZhiXueTeacherAccount(BaseDBClass):
     """智学网教师账号模型"""
     __tablename__ = "zhixue_teacher_accounts"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String(200), nullable=False)
     realname: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -50,7 +50,7 @@ class ZhiXueStudentAccount(BaseDBClass):
     """智学网学生账号模型"""
     __tablename__ = "zhixue_student_accounts"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String(200), nullable=False)
     realname: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -102,7 +102,7 @@ class UserExam(BaseDBClass):
     __tablename__ = "user_exams"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    zhixue_id: Mapped[str] = mapped_column(String(80), ForeignKey("zhixue_student_accounts.id"))
+    zhixue_id: Mapped[str] = mapped_column(String(50), ForeignKey("zhixue_student_accounts.id"))
     exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"))
 
     zhixue: Mapped["ZhiXueStudentAccount"] = relationship("ZhiXueStudentAccount", back_populates="user_exams")
@@ -209,8 +209,8 @@ class User(UserMixin, BaseDBClass):
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     registration_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     last_login_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    zhixue_account_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("zhixue_student_accounts.id"), nullable=True)
+    zhixue_account_id: Mapped[Optional[str]] = mapped_column(
+        String(50), ForeignKey("zhixue_student_accounts.id"), nullable=True)
 
     zhixue: Mapped[Optional["ZhiXueStudentAccount"]] = relationship("ZhiXueStudentAccount", back_populates="users")
     background_tasks: Mapped[list["BackgroundTask"]] = relationship("BackgroundTask", back_populates="user")

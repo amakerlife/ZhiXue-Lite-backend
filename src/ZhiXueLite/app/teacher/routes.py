@@ -81,6 +81,7 @@ def add_teacher():
             db.session.add(school)
             db.session.flush()
         teacher = ZhiXueTeacherAccount(
+            id=teacher_account.id,
             username=data["username"],
             password=data["password"],
             realname=teacher_account.name,

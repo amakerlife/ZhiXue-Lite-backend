@@ -1,10 +1,9 @@
 import json
 import re
 from time import sleep
-from typing import Dict, List, Tuple
+from typing import Tuple
 
 from loguru import logger
-import requests
 from zhixuewang.teacher import TeacherAccount
 
 from app.utils.answersheet import draw_answersheet
@@ -32,8 +31,8 @@ class ExtendedTeacherAccount(TeacherAccount):
             cookie_items.append(f"{name}={value}")
         return "; ".join(cookie_items)
 
-    def get_exam_subjects(self, examid: str) -> Dict[
-        str, Dict[str, str]
+    def get_exam_subjects(self, examid: str) -> dict[
+        str, dict[str, str]
     ]:
         """
         获得指定考试学科列表（校级报告接口）
@@ -42,7 +41,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             examid: 考试 ID
 
         Returns:
-            Dict: 指定考试学科列表
+            dict: 指定考试学科列表
         """
         self.update_login_status()
         r = self.get_session().post(
@@ -60,7 +59,7 @@ class ExtendedTeacherAccount(TeacherAccount):
                 "id": subject["topicSetId"], "name": subject["subjectName"]}
         return subjectslist
 
-    def get_school_rank_by_stu_code(self, examid: str, stu_code: str) -> List:
+    def get_school_rank_by_stu_code(self, examid: str, stu_code: str) -> list:
         """
         根据 stu_code 获得学校排名
 
@@ -69,7 +68,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             stu_code: 准考证号
 
         Returns:
-            List: 每科学校排名
+            list: 每科学校排名
         """
         subjects = self.get_exam_subjects(examid)
         r = self.get_session().post(
@@ -94,7 +93,7 @@ class ExtendedTeacherAccount(TeacherAccount):
         return subject_scores
 
     @staticmethod
-    def calc_rank(student_list: List[StudentScoreInfo]):
+    def calc_rank(student_list: list[StudentScoreInfo]):
         """
         计算排名
 
@@ -169,7 +168,7 @@ class ExtendedTeacherAccount(TeacherAccount):
                         score_obj.classrank = current_rank
                     prev_score = current_score
 
-    def get_exam_scores(self, examid: str) -> List[StudentScoreInfo]:
+    def get_exam_scores(self, examid: str) -> list[StudentScoreInfo]:
         """
         获得成绩单
 
@@ -177,7 +176,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             examid: 考试 ID
 
         Returns:
-            List: 成绩单
+            list: 成绩单
         """
         subjects = self.get_exam_subjects(examid)
         r = self.get_session().post(
@@ -217,15 +216,15 @@ class ExtendedTeacherAccount(TeacherAccount):
         return students_list
 
     def get_answersheet_data(self, subjectid: str, stuid: str) -> Tuple[
-        Dict[str, str],
-        Dict[int, List[Dict[str, int | List[int]]]],
-        Dict[int, Dict[str, str]],
-        Dict[int, Dict[str,
+        dict[str, str],
+        dict[int, list[dict[str, int | list[int]]]],
+        dict[int, dict[str, str]],
+        dict[int, dict[str,
                        str |
                        float |
-                       List[Dict[str, int | float | List[Dict[str, float | str]]]]
+                       list[dict[str, int | float | list[dict[str, float | str]]]]
                        ]],
-        List[str],
+        list[str],
         str
     ]:
         """

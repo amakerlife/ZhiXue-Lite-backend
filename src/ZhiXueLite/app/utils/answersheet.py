@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import Dict, List, Tuple, cast
+from typing import Tuple, cast
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -39,7 +39,7 @@ def check_multiple(student_answer_str: str, standard_answer_str: str) -> int:
         return 2
 
 
-def vertical_concat(image_list: List[Image.Image]) -> Image.Image:
+def vertical_concat(image_list: list[Image.Image]) -> Image.Image:
     """
     将多个 Image 对象垂直拼接
     """
@@ -73,15 +73,15 @@ def draw_details(
 
 
 def draw_answersheet(
-    topic_mapping: Dict[str, str],
-    page_positions: Dict[int, List[Dict[str, int | List[int]]]],
-    objective_answer: Dict[int, Dict[str, str]],
-    answer_details: Dict[int, Dict[str,
+    topic_mapping: dict[str, str],
+    page_positions: dict[int, list[dict[str, int | list[int]]]],
+    objective_answer: dict[int, dict[str, str]],
+    answer_details: dict[int, dict[str,
                                    str |
                                    float |
-                                   List[Dict[str, int | float | List[Dict[str, float | str]]]]
+                                   list[dict[str, int | float | list[dict[str, float | str]]]]
                                    ]],
-    sheet_images: List[str],
+    sheet_images: list[str],
     paper_type: str
 ) -> Image.Image:
     images = []
@@ -110,7 +110,7 @@ def draw_answersheet(
                       / paper_height)
             right = left + width
             bottom = top + height
-            problems = cast(List[int], position["ixList"])
+            problems = cast(list[int], position["ixlist"])
 
             # 绘制选择题每小题得分
             sum_score, standard_sum_score = 0.0, 0.0
@@ -167,8 +167,8 @@ def draw_answersheet(
                             "darkorange",
                             cnt
                         )
-                    if len(cast(List, details["subTopics"])) > 1:
-                        for subtopic in cast(List, details["subTopics"]):
+                    if len(cast(list, details["subTopics"])) > 1:
+                        for subtopic in cast(list, details["subTopics"]):
                             score_text = (
                                 f"小题 {subtopic['subTopicIndex']}: 得分: "
                                 f"{subtopic['score']}"
@@ -192,9 +192,9 @@ def draw_answersheet(
                                     "blue",
                                     cnt
                                 )
-                    elif (isinstance(details["subTopics"], List) and
+                    elif (isinstance(details["subTopics"], list) and
                           details["subTopics"]):
-                        subtopic = cast(Dict, details["subTopics"][0])
+                        subtopic = cast(dict, details["subTopics"][0])
                         for record in subtopic["teacherMarkingRecords"]:
                             teacher_name = record.get("teacherName", "未知教师")
                             image, cnt = draw_details(

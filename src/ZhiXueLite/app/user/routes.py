@@ -192,6 +192,7 @@ def connect_zhixue():
             db.session.add(school_record)
             db.session.flush()
         zhixue_record = ZhiXueStudentAccount(
+            id=zhixue_account.id,
             username=zhixue_username,
             password=zhixue_password,  # TODO: 存储加密后的密码
             realname=zhixue_account.name,
