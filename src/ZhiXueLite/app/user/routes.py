@@ -174,6 +174,7 @@ def connect_zhixue():
     try:
         zhixue_account = login_student(zhixue_username, zhixue_password)
     except Exception as e:
+        raise
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库

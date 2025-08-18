@@ -237,13 +237,13 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
     r = session.get(
         Url.SSO_URL,
         params={
+            "appId": "pass6port18",
             "captchaId": captcha_id,
             "captchaType": "third",
             "thirdCaptchaParam": captcha_data["seccode"],
             "encode": "true",
             "sourceappname": "tkyh,tkyh",
             "_eventId": "submit",
-            "appid": "zx-container-client",
             "client": "web",
             "type": "loginByNormal",
             "key": "auto",

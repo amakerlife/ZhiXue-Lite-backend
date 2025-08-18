@@ -79,11 +79,13 @@ def create_app(config_name=config_name):
     from app.exam.routes import exam_bp
     from app.teacher.routes import teacher_bp
     from app.admin.routes import admin_bp
+    from app.task.routes import task_bp
 
     app.register_blueprint(user_bp, url_prefix="/user")
     app.register_blueprint(exam_bp, url_prefix="/exam")
     app.register_blueprint(teacher_bp, url_prefix="/teacher")
     app.register_blueprint(admin_bp, url_prefix="/admin")
+    app.register_blueprint(task_bp, url_prefix="/task")
 
     @app.cli.command("init-db")
     def init_db_command():

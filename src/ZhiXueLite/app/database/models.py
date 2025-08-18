@@ -181,7 +181,7 @@ class BackgroundTask(BaseDBClass):
 
     def to_dict(self):
         return {
-            "id": self.id,
+            "id": self.uuid,
             "task_type": self.task_type,
             "status": self.status,
             "user_id": self.user_id,

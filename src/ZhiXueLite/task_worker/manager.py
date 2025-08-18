@@ -26,34 +26,35 @@ class TaskManager:
 
     def process_task(self, task: BackgroundTask):
         """处理单个任务"""
-        session = get_session()
-        try:
-            logger.info(f"Starting task processing: {task.uuid} - {task.task_type}")
-            update_task_status(task.uuid, TaskStatus.PROCESSING)
+        with get_session() as session:
+            try:
+                logger.info(f"Starting task processing: {task.uuid} - {task.task_type}")
+                update_task_status(session, task.uuid, TaskStatus.PROCESSING)
 
-            handler = self.task_handlers.get(task.task_type)
-            if not handler:
-                raise ValueError(f"Task handler not found for: {task.task_type}")
-            parameters = json.loads(task.parameters) if task.parameters else {}
+                handler = self.task_handlers.get(task.task_type)
+                if not handler:
+                    raise ValueError(f"Task handler not found for: {task.task_type}")
 
-            result = handler(session, task.id, task.user_id, parameters)
+                parameters = json.loads(task.parameters) if task.parameters else {}
+                result = handler(session, task.id, task.user_id, parameters)
 
-            update_task_status(
-                task.uuid,
-                TaskStatus.COMPLETED,
-                result=json.dumps(result) if result else None,
-                progress=100
-            )
-            logger.info(f"Task finished: {task.uuid} - {task.task_type}")
-        except Exception as e:
-            logger.error(f"Task failed: {task.uuid} - {str(e)}")
-            update_task_status(
-                task.uuid,
-                TaskStatus.FAILED,
-                error_message=str(e)
-            )
-        finally:
-            session.remove()
+                update_task_status(
+                    session,
+                    task.uuid,
+                    TaskStatus.COMPLETED,
+                    result=json.dumps(result) if result else None,
+                    progress=100
+                )
+                logger.info(f"Task finished: {task.uuid} - {task.task_type}")
+
+            except Exception as e:
+                logger.error(f"Task failed: {task.uuid} - {str(e)}")
+                update_task_status(
+                    session,
+                    task.uuid,
+                    TaskStatus.FAILED,
+                    error_message=str(e)
+                )
 
     def polling_worker(self):
         """轮询工作线程"""
