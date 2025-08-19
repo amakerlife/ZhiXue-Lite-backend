@@ -2,9 +2,11 @@ import time
 from loguru import logger
 from task_worker.database import init_db
 from task_worker.manager import task_manager
+from task_worker.logger import setup_logger
 
 
 def main():
+    setup_logger()
     logger.info("Initializing task worker...")
 
     init_db()
