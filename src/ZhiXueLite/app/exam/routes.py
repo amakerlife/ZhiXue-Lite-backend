@@ -60,6 +60,7 @@ def fetch_exam_list():
     task = create_task(
         task_type="fetch_exam_list",
         user_id=current_user.id,
+        timeout=1
     )
     return jsonify({
         "success": True,

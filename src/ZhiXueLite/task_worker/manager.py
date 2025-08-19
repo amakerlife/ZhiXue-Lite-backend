@@ -20,7 +20,7 @@ class TaskManager:
         self.polling_thread: Optional[threading.Thread] = None
         self.is_running = False
         self.poll_interval = 2
-        self.task_timeout = 300  # 5分钟任务超时
+        self.task_timeout = 300  # 默认 5 分钟任务超时
         self.running_processes: dict[str, subprocess.Popen] = {}  # 跟踪运行中的进程
 
     def get_runner_script_path(self) -> Path:
@@ -60,17 +60,20 @@ class TaskManager:
             self.running_processes[task.uuid] = process
 
             try:
-                # 等待进程完成，带超时
-                stdout, stderr = process.communicate(timeout=self.task_timeout)
+                task_timeout = task.timeout if task.timeout and task.timeout > 0 else self.task_timeout
+                logger.debug(f"Task {task.uuid} will run with timeout: {task_timeout}s")
+
+                # 等待进程完成
+                stdout, stderr = process.communicate(timeout=task_timeout)
 
                 if process.returncode == 0:
                     logger.info(f"Task subprocess completed successfully: {task.uuid}")
                     if stdout:
                         logger.debug(f"Task stdout: {stdout}")
                 else:
-                    logger.error(f"Task subprocess failed with code {process.returncode}: {task.uuid}")
+                    logger.warning(f"Task subprocess failed with code {process.returncode}: {task.uuid}")
                     if stderr:
-                        logger.error(f"Task stderr: {stderr}")
+                        logger.warning(f"Task stderr: {stderr}")
 
                     # 如果子进程失败，确保数据库中的任务状态被更新
                     with get_session() as session:
@@ -78,12 +81,13 @@ class TaskManager:
                             session,
                             task.uuid,
                             TaskStatus.FAILED,
-                            error_message=f"Subprocess failed: {stderr[:500] if stderr else 'Unknown error'}"
+                            error_message="Task failed due to unknown error, "
+                                          "please contact the administrator for more information"
                         )
                         session.commit()
 
             except subprocess.TimeoutExpired:
-                logger.error(f"Task subprocess timeout: {task.uuid}")
+                logger.warning(f"Task subprocess timeout: {task.uuid}")
                 process.kill()
                 stdout, stderr = process.communicate()
 
@@ -93,7 +97,7 @@ class TaskManager:
                         session,
                         task.uuid,
                         TaskStatus.FAILED,
-                        error_message=f"Task timeout after {self.task_timeout} seconds"
+                        error_message=f"Task timeout after {task_timeout} seconds"
                     )
                     session.commit()
 
@@ -109,7 +113,7 @@ class TaskManager:
                     session,
                     task.uuid,
                     TaskStatus.FAILED,
-                    error_message=f"Failed to start subprocess: {str(e)}"
+                    error_message="Failed to start task, please contact the administrator for more information"
                 )
                 session.commit()
 
@@ -133,7 +137,7 @@ class TaskManager:
                         session,
                         task_uuid,
                         TaskStatus.FAILED,
-                        error_message="Task was manually stopped"
+                        error_message="Task was manually stopped, please contact the administrator for more information"
                     )
                     session.commit()
 

@@ -155,7 +155,12 @@ class BackgroundTask(BaseDBClass):
     result: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # 错误信息
-    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)    # 时间戳
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # 任务超时时间（秒）
+    timeout: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    # 时间戳
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

@@ -8,12 +8,18 @@ from app.database import db
 from app.database.models import BackgroundTask, TaskStatus
 
 
-def create_task(task_type: str, user_id: int, parameters: Optional[dict[str, Any]] = None) -> BackgroundTask:
+def create_task(
+    task_type: str,
+    user_id: int,
+    parameters: Optional[dict[str, Any]] = None,
+    timeout: Optional[int] = None
+) -> BackgroundTask:
     """创建新任务"""
     task = BackgroundTask(
         task_type=task_type,
         user_id=user_id,
-        parameters=json.dumps(parameters) if parameters else None
+        parameters=json.dumps(parameters) if parameters else None,
+        timeout=timeout
     )
     db.session.add(task)
     db.session.commit()
