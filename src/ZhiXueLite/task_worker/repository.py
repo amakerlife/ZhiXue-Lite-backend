@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from loguru import logger
 from app.database.models import BackgroundTask, TaskStatus
 from task_worker.database import get_session
 
@@ -38,9 +39,18 @@ def update_task_status(session: Session, task_uuid: str, status: TaskStatus, **k
 
 
 def update_task_progress(session: Session, task_id: int, progress: int, message: Optional[str] = None):
-    """更新任务进度 - 在现有 session 中操作，不提交事务"""
-    task = session.get(BackgroundTask, task_id)
-    if task:
-        task.progress = progress
-        if message:
-            task.progress_message = message
+    """更新任务进度 - 立即提交进度更新到数据库"""
+    try:
+        task = session.get(BackgroundTask, task_id)
+        if task:
+            task.progress = progress
+            if message:
+                task.progress_message = message
+            session.commit()
+
+    except Exception as e:
+        logger.error(f"Failed to update task progress: {e}")
+        try:
+            session.rollback()
+        except:
+            pass

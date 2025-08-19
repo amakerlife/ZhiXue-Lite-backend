@@ -79,9 +79,6 @@ def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parame
                 f"已处理 {i + 1}/{total_exams} 个考试"
             )
 
-            if i != total_exams - 1:
-                time.sleep(1)
-
         session.flush()
 
         update_task_progress(session, task_id, 100, "任务完成")
