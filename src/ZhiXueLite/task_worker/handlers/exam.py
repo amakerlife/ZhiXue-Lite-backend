@@ -12,7 +12,7 @@ from loguru import logger
 
 def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parameters: dict[str, Any]):
     """
-    拉取考试列表的任务处理器
+    拉取考试列表
     """
     try:
         update_task_progress(session, task_id, 10, "正在获取用户信息...")

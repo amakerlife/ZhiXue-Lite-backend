@@ -12,10 +12,12 @@ from app.database import BaseDBClass
 
 class TaskStatus(Enum):
     """任务状态"""
-    PENDING = "pending"      # 等待中
+    PENDING = "pending"        # 等待中
     PROCESSING = "processing"  # 处理中
-    COMPLETED = "completed"   # 已完成
-    FAILED = "failed"        # 失败
+    COMPLETED = "completed"    # 已完成
+    FAILED = "failed"          # 失败
+    CANCELLING = "cancelling"  # 取消中
+    CANCELLED = "cancelled"    # 已取消
 
 
 class School(BaseDBClass):

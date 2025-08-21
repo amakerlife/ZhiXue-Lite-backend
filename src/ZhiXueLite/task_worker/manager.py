@@ -1,3 +1,4 @@
+# TODO: 异步轮询，子进程不阻塞
 import subprocess
 import sys
 import threading
@@ -9,7 +10,7 @@ from loguru import logger
 
 from app.database.models import BackgroundTask, TaskStatus
 from task_worker.database import init_db, get_session
-from task_worker.repository import get_next_pending_task, update_task_status
+from task_worker.repository import get_cancelling_tasks, get_next_pending_task, update_task_status
 
 
 class TaskManager:
@@ -140,6 +141,7 @@ class TaskManager:
                     )
                     session.commit()
 
+                self.running_processes.pop(task_uuid, None)
                 logger.info(f"Task stopped: {task_uuid}")
                 return True
             except Exception as e:
@@ -160,6 +162,46 @@ class TaskManager:
 
         return list(self.running_processes.keys())
 
+    def handle_cancellations(self):
+        """检查并处理所有取消中的任务"""
+        try:
+            cancelling_tasks = get_cancelling_tasks()
+            for task in cancelling_tasks:
+                process = self.running_processes.get(task.uuid)
+
+                if process and process.poll() is None:
+                    logger.info(f"Terminating running task: {task.uuid}")
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait()
+
+                    with get_session() as session:
+                        update_task_status(
+                            session,
+                            task.uuid,
+                            TaskStatus.FAILED,
+                            error_message="Task was cancelled"
+                        )
+                        session.commit()
+                    self.running_processes.pop(task.uuid, None)
+                else:
+                    logger.warning(f"Process for task {task.uuid} not found or already terminated. Updating status.")
+                    with get_session() as session:
+                        update_task_status(
+                            session,
+                            task.uuid,
+                            TaskStatus.FAILED,
+                            error_message="Task was cancelled"
+                        )
+                        session.commit()
+                    self.running_processes.pop(task.uuid, None)
+
+        except Exception as e:
+            logger.error(f"Error occurred while handling cancellations: {e}")
+
     def polling_worker(self):
         """轮询工作线程"""
         logger.info("Polling worker started")
@@ -167,8 +209,9 @@ class TaskManager:
 
         while self.is_running:
             try:
-                task = get_next_pending_task()
+                # self.handle_cancellations()
 
+                task = get_next_pending_task()
                 if task:
                     self.process_task(task)
                 else:

@@ -54,3 +54,13 @@ def update_task_progress(session: Session, task_id: int, progress: int, message:
             session.rollback()
         except:
             pass
+
+
+def get_cancelling_tasks() -> list[BackgroundTask]:
+    """获取所有取消中的任务"""
+    with get_session() as session:
+        tasks = session.scalars(select(BackgroundTask).where(
+            BackgroundTask.status == TaskStatus.CANCELLING.value)).all()
+        for task in tasks:
+            session.expunge(task)
+        return list(tasks)
