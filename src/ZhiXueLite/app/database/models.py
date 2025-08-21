@@ -92,6 +92,7 @@ class Exam(BaseDBClass):
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[float] = mapped_column(Float)
+    is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))  # TODO: 支持联考
 
     user_exams: Mapped[list["UserExam"]] = relationship("UserExam", back_populates="exam")
