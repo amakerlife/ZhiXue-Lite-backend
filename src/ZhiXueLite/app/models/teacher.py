@@ -59,39 +59,6 @@ class ExtendedTeacherAccount(TeacherAccount):
                 "id": subject["topicSetId"], "name": subject["subjectName"]}
         return subjectslist
 
-    def get_school_rank_by_stu_code(self, examid: str, stu_code: str) -> list:
-        """
-        根据 stu_code 获得学校排名
-
-        Args:
-            examid: 考试 ID
-            stu_code: 准考证号
-
-        Returns:
-            list: 每科学校排名
-        """
-        subjects = self.get_exam_subjects(examid)
-        r = self.get_session().post(
-            "https://www.zhixue.com/api-teacher/api/studentScore/getAllSubjectStudentRank",
-            data={
-                "examId": examid,
-                "pageIndexInt": 1,
-                "version": "V3",
-                "searchValue": stu_code,
-            }
-        )
-        data = r.json()["result"]["studentRank"][0]
-        total_score = Score("总分", data["allScore"],
-                            data["classRank"], data["schoolRank"], -1)
-        subject_scores = [total_score]
-        score_info = data["scoreInfos"]
-        for info in score_info:
-            subject_code = info["subjectCode"]
-            subject_name = subjects[subject_code]["name"]
-            subject_scores.append(Score(
-                subject_name, info["score"], info["classRank"], info["schoolRank"], subject_code))
-        return subject_scores
-
     @staticmethod
     def calc_rank(student_list: list[StudentScoreInfo]):
         """
@@ -122,16 +89,16 @@ class ExtendedTeacherAccount(TeacherAccount):
                 return -1
 
         # 按科目分组
-        subject_scores = {}
+        subject_scores: dict[str, list[Tuple[StudentScoreInfo, Score]]] = {}
         for student in student_list:
-            for subject_name, score_obj in student.scores.items():
-                if subject_name not in subject_scores:
-                    subject_scores[subject_name] = []
-                subject_scores[subject_name].append((student, score_obj))
+            for score in student.scores:
+                if score.name not in subject_scores:
+                    subject_scores[score.name] = []
+                subject_scores[score.name].append((student, score))
 
         for subject_name, scores in subject_scores.items():
             # 按班级分组
-            class_groups = {}
+            class_groups: dict[str, list[Tuple[StudentScoreInfo, Score]]] = {}
             for student, score_obj in scores:
                 if student.class_name not in class_groups:
                     class_groups[student.class_name] = []
@@ -145,11 +112,11 @@ class ExtendedTeacherAccount(TeacherAccount):
             for i, (student, score_obj) in enumerate(sorted_scores):
                 current_score = parse_score(score_obj.score)
                 if current_score == -1:
-                    score_obj.schoolrank = len(sorted_scores)
+                    score_obj.schoolrank = str(len(sorted_scores))
                 else:
                     if prev_score is not None and current_score != prev_score:
                         current_rank = i + 1
-                    score_obj.schoolrank = current_rank
+                    score_obj.schoolrank = str(current_rank)
                 prev_score = current_score
 
             # 计算班级排名
@@ -161,11 +128,11 @@ class ExtendedTeacherAccount(TeacherAccount):
                 for i, (student, score_obj) in enumerate(sorted_class_scores):
                     current_score = parse_score(score_obj.score)
                     if current_score == -1:
-                        score_obj.classrank = len(sorted_class_scores)
+                        score_obj.classrank = str(len(sorted_class_scores))
                     else:
                         if prev_score is not None and current_score != prev_score:
                             current_rank = i + 1
-                        score_obj.classrank = current_rank
+                        score_obj.classrank = str(current_rank)
                     prev_score = current_score
 
     def get_exam_scores(self, examid: str) -> list[StudentScoreInfo]:
@@ -200,15 +167,16 @@ class ExtendedTeacherAccount(TeacherAccount):
             )
             data = r.json()["result"]
             for student in data["studentRank"]:
-                student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentLabel"],  # type: ignore
-                                                student["className"], student["allScore"], student["classRank"],
-                                                student["schoolRank"])
+                student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentNo"],  # type: ignore
+                                                student["userNum"], student["studentLabel"], student["className"],
+                                                student["allScore"], student["classRank"], student["schoolRank"])
                 if "-" in student["schoolRank"] or "-" in student["classRank"]:
                     need_calc_rank = True
                 for score_info in student["scoreInfos"]:
                     subject_name = subjects[score_info["subjectCode"]]["name"]
                     student_info.add_subject_score(subject_name, score_info["score"], score_info["classRank"],
-                                                   score_info["schoolRank"], score_info["subjectCode"])
+                                                   score_info["schoolRank"], score_info["subjectCode"],
+                                                   subjects[score_info["subjectCode"]]["id"])
                 students_list.append(student_info)
             sleep(0.5)
         if need_calc_rank:

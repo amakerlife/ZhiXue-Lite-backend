@@ -7,26 +7,29 @@ class Score():
     score: str
     classrank: str
     schoolrank: str
-    subjectcode: int
+    subjectcode: int  # -1 for 总分
+    topicsetid: str
 
 
 @dataclass
 class StudentScoreInfo():
     username: str
     user_id: str
+    studentno: str
+    usernum: str
     label: str
     class_name: str
     all_score: str
     class_rank: str
     school_rank: str
-    scores: dict[str, Score] = field(default_factory=dict)
+    scores: list[Score] = field(default_factory=list)
 
     def __init__(self, **data):
         super().__init__(**data)
-        self.scores = {
-            "总分": Score("总分", self.all_score, self.class_rank,
-                        self.school_rank, -1)
-        }
+        self.scores = [
+            Score("总分", self.all_score, self.class_rank,
+                  self.school_rank, -1, "0")
+        ]
 
     def add_subject_score(
         self,
@@ -34,12 +37,14 @@ class StudentScoreInfo():
         score: str,
         class_rank: str,
         school_rank: str,
-        subject_code: int
+        subject_code: int,
+        topicsetid: str,
     ):
-        self.scores[subject_name] = Score(
+        self.scores.append(Score(
             subject_name,
             score,
             class_rank,
             school_rank,
-            subject_code
-        )
+            subject_code,
+            topicsetid,
+        ))

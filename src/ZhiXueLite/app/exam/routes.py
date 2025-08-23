@@ -67,3 +67,44 @@ def fetch_exam_list():
         "task_id": task.uuid,
         "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
     }), 202
+
+@exam_bp.route("/<string:exam_id>", methods=["GET"])
+@login_required
+@zhixue_account_required
+def get_exam_details(exam_id):
+    """
+    获取指定考试的详细基础信息
+    """
+    stmt = select(Exam).where(Exam.id == exam_id)
+    exam = db.session.scalar(stmt)
+    if not exam:
+        return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
+
+    return jsonify({
+        "success": True,
+        "exam": {
+            "id": exam.id,
+            "name": exam.name,
+            "school_id": exam.school_id,
+            "created_at": exam.created_at
+        }
+    }), 200
+
+@exam_bp.route("/<string:exam_id>/fetch", methods=["GET", "POST"])
+@login_required
+@zhixue_account_required
+def fetch_exam_details(exam_id):
+    """
+    拉取指定考试的详细信息
+    """
+    task = create_task(
+        task_type="fetch_exam_details",
+        user_id=current_user.id,
+        parameters={"exam_id": exam_id},
+        timeout=180
+    )
+    return jsonify({
+        "success": True,
+        "task_id": task.uuid,
+        "message": "考试详情拉取任务已创建，请通过任务 ID 查询进度"
+    }), 202

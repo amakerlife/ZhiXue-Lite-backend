@@ -15,8 +15,9 @@ def load_task_handlers() -> Dict[str, Any]:
     handlers = {}
 
     try:
-        from task_worker.handlers.exam import fetch_exam_list_handler
-        handlers["fetch_exam_list"] = fetch_exam_list_handler
+        import task_worker.handlers.exam as h
+        handlers["fetch_exam_list"] = h.fetch_exam_list_handler
+        handlers["fetch_exam_details"] = h.fetch_exam_details_handler
         logger.debug(f"Loaded task handlers: {list(handlers.keys())}")
     except ImportError as e:
         logger.error(f"Failed to import task handlers: {e}")

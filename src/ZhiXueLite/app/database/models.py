@@ -80,7 +80,8 @@ class Student(BaseDBClass):
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     name: Mapped[str] = mapped_column(String(80))
     label: Mapped[str] = mapped_column(String(50))
-    no: Mapped[str] = mapped_column(String(50))
+    no: Mapped[str] = mapped_column(String(50))  # 自定义考号，studentNo
+    number: Mapped[str] = mapped_column(String(50))  # 准考证号，userNum
 
     scores: Mapped[list["Score"]] = relationship("Score", back_populates="student")
 
@@ -112,33 +113,22 @@ class UserExam(BaseDBClass):
     exam: Mapped["Exam"] = relationship("Exam", back_populates="user_exams")
 
 
-class Subject(BaseDBClass):
-    """科目模型"""
-    __tablename__ = "subjects"
-
-    id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
-    name: Mapped[str] = mapped_column(String(20))
-
-    scores: Mapped[list["Score"]] = relationship("Score", back_populates="subject")
-
-
 class Score(BaseDBClass):
     __tablename__ = "scores"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     student_id: Mapped[str] = mapped_column(String(50), ForeignKey("students.id"))
     exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"))
-    subject_id: Mapped[str] = mapped_column(String(50), ForeignKey("subjects.id"))
+    subject_id: Mapped[str] = mapped_column(String(50))
     class_name: Mapped[str] = mapped_column(String(50))
 
-    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)  # 为空时表示原始数据无成绩，下同
-    class_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    school_rank: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 为空时表示原始数据无成绩，下同
+    class_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    school_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     score_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="ok")  # 状态，ok 正常，错误状态待发掘
 
     student: Mapped["Student"] = relationship("Student", back_populates="scores")
     exam: Mapped["Exam"] = relationship("Exam", back_populates="scores")
-    subject: Mapped["Subject"] = relationship("Subject", back_populates="scores")
 
 
 class BackgroundTask(BaseDBClass):
