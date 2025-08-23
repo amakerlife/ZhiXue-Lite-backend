@@ -38,6 +38,7 @@ def get_teacher_list():
     paginated_teachers = paginated_json(teachers, page, per_page)
 
     teacher_list = [{
+        "id": teacher.id,
         "username": teacher.username,
         "realname": teacher.realname,
         "school_name": teacher.school.name,
@@ -97,6 +98,7 @@ def add_teacher():
             "success": True,
             "message": "教师账号添加成功",
             "teacher": {
+                "id": teacher.id,
                 "username": teacher.username,
                 "realname": teacher.realname,
                 "school_name": teacher.school.name,
@@ -108,12 +110,15 @@ def add_teacher():
         return jsonify({"success": False, "message": "教师账号验证失败，请检查用户名密码"}), 400
 
 
-@teacher_bp.route("/<int:teacher_id>", methods=["PUT"])
+@teacher_bp.route("/<string:user_name>", methods=["PUT"])
 @login_required
 @admin_required
-def update_teacher(teacher_id):
+def update_teacher(user_name):
     """更新教师账号"""
-    teacher = db.get_or_404(ZhiXueTeacherAccount, teacher_id)
+    teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(ZhiXueTeacherAccount.username == user_name))
+    if not teacher:
+        return jsonify({"success": False, "message": "教师账号不存在"}), 404
+
     data = request.get_json()
 
     allowed_fields = ["password", "login_method", "is_active"]
@@ -140,12 +145,14 @@ def update_teacher(teacher_id):
     return jsonify({"success": True, "message": "教师账号更新成功"}), 200
 
 
-@teacher_bp.route("/<int:teacher_id>", methods=["DELETE"])
+@teacher_bp.route("/<string:user_name>", methods=["DELETE"])
 @login_required
 @admin_required
-def delete_teacher(teacher_id):
+def delete_teacher(user_name):
     """删除教师账号"""
-    teacher = db.get_or_404(ZhiXueTeacherAccount, teacher_id)
+    teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(ZhiXueTeacherAccount.username == user_name))
+    if not teacher:
+        return jsonify({"success": False, "message": "教师账号不存在"}), 404
 
     db.session.delete(teacher)
     db.session.commit()
@@ -153,14 +160,17 @@ def delete_teacher(teacher_id):
     return jsonify({"success": True, "message": "教师账号删除成功"}), 200
 
 
-@teacher_bp.route("/<int:teacher_id>", methods=["GET"])
+@teacher_bp.route("/<string:user_name>", methods=["GET"])
 @login_required
 @admin_required
-def get_teacher_detail(teacher_id):
+def get_teacher_detail(user_name):
     """获取教师账号详情"""
-    teacher = db.get_or_404(ZhiXueTeacherAccount, teacher_id)
+    teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(ZhiXueTeacherAccount.username == user_name))
+    if not teacher:
+        return jsonify({"success": False, "message": "教师账号不存在"}), 404
 
     teacher_detail = {
+        "id": teacher.id,
         "username": teacher.username,
         "school_name": teacher.school.name,
         "login_method": teacher.login_method,
