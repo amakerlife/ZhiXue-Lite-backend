@@ -99,10 +99,12 @@ def fetch_exam(exam_id):
     """
     拉取指定考试的详细信息
     """
+    force_refresh = request.args.get("force_refresh", "false").lower() == "true"
+
     task = create_task(
         task_type="fetch_exam_details",
         user_id=current_user.id,
-        parameters={"exam_id": exam_id},
+        parameters={"exam_id": exam_id, "force_refresh": force_refresh},
         timeout=180
     )
     return jsonify({

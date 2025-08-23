@@ -276,14 +276,19 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
 
 
 def update_login_status(account):
-    """更新登录状态. 如果 session 过期自动重新获取"""
+    """更新登录状态. 如果 session 过期自动重新获取
+
+    Returns:
+        bool: 是否更新了 session
+    """
     r = account._session.get(Url.GET_LOGIN_STATE)
     data = r.json()
     if data["result"] == "success":
-        return account
-    # session过期
+        return False
+    # session 过期
     password = base64.b64decode(account._session.cookies["pwd"].encode()).decode()
     account._session = get_session_by_captcha(account.username, password)
+    return True
 
 
 def set_user_session(cookie: str) -> Session | None:

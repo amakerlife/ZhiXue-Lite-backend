@@ -107,6 +107,7 @@ def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parame
 def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, parameters: dict[str, Any]):
     """拉取考试分数详情"""
     exam_id = parameters.get("exam_id", None)
+    force_refresh = parameters.get("force_refresh", False)
     if exam_id is None:
         raise ValueError("Missing exam_id parameter")
 
@@ -114,10 +115,16 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
     exam = session.scalar(stmt)
     if not exam:
         raise ValueError(f"Exam not found: {exam_id}")
+    if exam.is_saved and not force_refresh:
+        update_task_progress(session, task_id, 100, "考试已被保存，无需重复拉取")
 
     try:
         teacher_account = get_teacher(session, exam_id)
         teacher = login_teacher_session(teacher_account.cookie)
+        if teacher_account.cookie != teacher.get_cookie():
+            teacher_account.cookie = teacher.get_cookie()
+            session.flush()
+
         student_scores = teacher.get_exam_scores(exam_id)
         total_students = len(student_scores)
 
@@ -135,6 +142,22 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     )
                     session.add(new_student)
                     session.flush()
+
+                stmt = select(Score).where(
+                    (Score.student_id == student_score.user_id) &
+                    (Score.exam_id == exam_id) &
+                    (Score.subject_id == score.topicsetid)
+                )
+                existing_score = session.scalar(stmt)
+                if existing_score and not force_refresh:
+                    continue
+                elif existing_score:
+                    existing_score.score = score.score
+                    existing_score.standard_score = score.standard_score
+                    existing_score.class_rank = score.classrank
+                    existing_score.school_rank = score.schoolrank
+                    session.flush()
+                    continue
 
                 new_score = Score(
                     student_id=student_score.user_id,

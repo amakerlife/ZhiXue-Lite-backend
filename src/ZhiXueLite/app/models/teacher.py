@@ -16,9 +16,22 @@ class ExtendedTeacherAccount(TeacherAccount):
 
     def update_login_status(self):
         """
-        更新登录状态
+        更新登录状态，如果更新了则保存新 cookie 到数据库（仅在 Flask 上下文中）
         """
-        update_login_status(self)
+        updated = update_login_status(self)
+        if updated:
+            try:
+                # 检查是否在Flask上下文中
+                from flask import has_app_context
+                if has_app_context():
+                    from app.database import db
+                    from app.database.models import ZhiXueTeacherAccount
+                    account = db.session.get(ZhiXueTeacherAccount, self.id)
+                    if account:
+                        account.cookie = self.get_cookie()
+                        db.session.commit()
+            except ImportError:
+                pass
 
     def get_cookie(self) -> str:
         """
