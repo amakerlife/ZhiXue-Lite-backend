@@ -4,10 +4,25 @@ from flask_login import login_required, current_user
 from functools import wraps
 from sqlalchemy import select, desc
 from app.database import db
-from app.database.models import Exam, Score, User, UserExam
+from app.database.models import Exam, Score, UserExam
 from app.task.repository import create_task
 from app.utils.paginate import paginated_json
+from app import limiter
+from flask_limiter.util import get_remote_address
+
 exam_bp = Blueprint("exam", __name__)
+
+
+def get_ip_limit():
+    """基于 IP 的限制"""
+    return get_remote_address()
+
+
+def get_user_limit():
+    """基于用户的限制"""
+    if current_user.is_authenticated:
+        return f"user_{current_user.id}"
+    return get_remote_address()
 
 
 def zhixue_account_required(f):
@@ -54,6 +69,14 @@ def get_exam_list():
 @exam_bp.route("/list/fetch", methods=["GET", "POST"])
 @login_required
 @zhixue_account_required
+@limiter.limit("3 per 20 minutes",
+               key_func=get_user_limit,
+               deduct_when=lambda response: response.status_code == 403
+               )
+@limiter.limit("10/day",
+               key_func=get_user_limit,
+               deduct_when=lambda response: response.status_code == 403
+               )
 def fetch_exam_list():
     """
     从源服务器拉取当前学生的考试列表
@@ -69,9 +92,18 @@ def fetch_exam_list():
         "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
     }), 202
 
+
 @exam_bp.route("/<string:exam_id>", methods=["GET"])
 @login_required
 @zhixue_account_required
+@limiter.limit("5 per 20 minutes",
+               key_func=get_user_limit,
+               deduct_when=lambda response: response.status_code == 403
+               )
+@limiter.limit("30/day",
+               key_func=get_user_limit,
+               deduct_when=lambda response: response.status_code == 403
+               )
 def get_exam_info(exam_id):
     """
     获取指定考试的基本信息
@@ -91,6 +123,7 @@ def get_exam_info(exam_id):
             "created_at": exam.created_at
         }
     }), 200
+
 
 @exam_bp.route("/fetch/<string:exam_id>", methods=["GET", "POST"])
 @login_required
@@ -112,6 +145,7 @@ def fetch_exam(exam_id):
         "task_id": task.uuid,
         "message": "考试详情拉取任务已创建，请通过任务 ID 查询进度"
     }), 202
+
 
 @exam_bp.route("/score/<string:exam_id>", methods=["GET"])
 @login_required

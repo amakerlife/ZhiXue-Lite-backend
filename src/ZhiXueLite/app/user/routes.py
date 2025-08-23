@@ -157,6 +157,10 @@ def already_bound_exempt():
                exempt_when=already_bound_exempt,
                deduct_when=lambda response: response.status_code == 403
                )
+# @limiter.limit("500/day",
+#                key_func=lambda: "all",
+#                deduct_when=lambda response: response.status_code == 403
+#                )
 def connect_zhixue():
     """绑定智学网账号"""
     data = request.get_json()
@@ -174,7 +178,6 @@ def connect_zhixue():
     try:
         zhixue_account = login_student(zhixue_username, zhixue_password)
     except Exception as e:
-        raise
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库
