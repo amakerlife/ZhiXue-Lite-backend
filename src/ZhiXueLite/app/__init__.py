@@ -1,5 +1,6 @@
 import os
 from flask import Flask, jsonify
+from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user
@@ -30,6 +31,14 @@ def create_app(config_name=config_name):
     app = Flask("ZhiXueLite-backend")
 
     app.config.from_object(config[config_name])
+
+    # 配置CORS
+    frontend_urls = os.getenv("FRONTEND_URLS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    CORS(app, 
+         origins=frontend_urls,
+         supports_credentials=True,
+         allow_headers=["Content-Type", "Authorization"],
+         methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
     setup_logger(app)
     init_db(app)
