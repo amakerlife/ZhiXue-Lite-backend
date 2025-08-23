@@ -88,14 +88,8 @@ def get_exam_list():
 @exam_bp.route("/list/fetch", methods=["GET", "POST"])
 @login_required
 @zhixue_account_required
-@limiter.limit("3 per 20 minutes",
-               key_func=get_user_limit,
-               deduct_when=lambda response: response.status_code == 403
-               )
-@limiter.limit("10/day",
-               key_func=get_user_limit,
-               deduct_when=lambda response: response.status_code == 403
-               )
+@limiter.limit("3 per 20 minutes", key_func=get_user_limit)
+@limiter.limit("10/day", key_func=get_user_limit)
 def fetch_exam_list():
     """
     从源服务器拉取当前学生的考试列表
@@ -115,14 +109,6 @@ def fetch_exam_list():
 @exam_bp.route("/<string:exam_id>", methods=["GET"])
 @login_required
 @zhixue_account_required
-@limiter.limit("5 per 20 minutes",
-               key_func=get_user_limit,
-               deduct_when=lambda response: response.status_code == 403
-               )
-@limiter.limit("30/day",
-               key_func=get_user_limit,
-               deduct_when=lambda response: response.status_code == 403
-               )
 def get_exam_info(exam_id):
     """
     获取指定考试的基本信息
@@ -147,6 +133,8 @@ def get_exam_info(exam_id):
 @exam_bp.route("/fetch/<string:exam_id>", methods=["GET", "POST"])
 @login_required
 @zhixue_account_required
+@limiter.limit("5 per 20 minutes", key_func=get_user_limit)
+@limiter.limit("30/day", key_func=get_user_limit)
 def fetch_exam(exam_id):
     """
     拉取指定考试的详细信息
