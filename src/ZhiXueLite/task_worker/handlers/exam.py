@@ -94,10 +94,7 @@ def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parame
         session.flush()
 
         update_task_progress(session, task_id, 100, "任务完成")
-        return {
-            "total_exams": len(processed_exams),
-            "exams": processed_exams
-        }
+        return {"success": True}
 
     except Exception as e:
         logger.error(f"Fetch exam list handler failed: {str(e)}")
@@ -182,6 +179,8 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         exam.is_saved = True
 
         update_task_progress(session, task_id, 100, "任务完成")
+
+        return {"success": True}
 
     except Exception as e:
         logger.error(f"Fetch exam details handler failed: {str(e)}")
