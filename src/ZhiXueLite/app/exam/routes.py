@@ -1,10 +1,14 @@
+from pathlib import Path
 from typing import cast
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 from flask_login import login_required, current_user
 from functools import wraps
+import os
+import time
+from openpyxl import Workbook
 from sqlalchemy import select, desc
 from app.database import db
-from app.database.models import Exam, Score, UserExam
+from app.database.models import Exam, Score, UserExam, Student
 from app.task.repository import create_task
 from app.utils.paginate import paginated_json
 from app import limiter
@@ -30,6 +34,15 @@ def zhixue_account_required(f):
     def decorated_function(*args, **kwargs):
         if not current_user.zhixue:
             return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_or_special_user_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if current_user.role != "admin":
+            return jsonify({"success": False, "message": "权限不足，仅管理员可使用此功能"}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -181,3 +194,97 @@ def get_user_exam_score(exam_id):
         "created_at": exam.created_at,
         "scores": scores
     }), 200
+
+
+@exam_bp.route("/scoresheet/<string:exam_id>", methods=["GET"])
+@login_required
+@admin_or_special_user_required
+def generate_scoresheet(exam_id):
+    """
+    生成指定考试的成绩单 Excel 文件
+    仅管理员可使用
+    """
+    stmt = select(Exam).where(Exam.id == exam_id)
+    exam = db.session.scalar(stmt)
+    if not exam:
+        return jsonify({"success": False, "message": "考试不存在"}), 404
+
+    if not exam.is_saved:
+        return jsonify({"success": False, "message": "考试数据尚未保存，请先拉取考试详情"}), 400
+
+    stmt = select(Score).where(Score.exam_id == exam_id).join(Student)
+    scores_data = db.session.scalars(stmt).all()
+
+    if not scores_data:
+        return jsonify({"success": False, "message": "该考试暂无成绩数据"}), 404
+
+    wb = Workbook()
+    ws = wb.active
+    if ws is None:
+        raise RuntimeError("Failed to create worksheet")
+    ws.title = "成绩单"
+
+    student_dict = {}
+    subject_names = set()
+
+    for score in scores_data:
+        student_id = score.student_id
+        if student_id not in student_dict:
+            student_dict[student_id] = {
+                "name": score.student.name,
+                "label": score.student.label,
+                "class_name": score.class_name,
+                "subjects": {}
+            }
+
+        subject_name = score.subject_name
+        subject_names.add(subject_name)
+        student_dict[student_id]["subjects"][subject_name] = {
+            "score": score.score,
+            "standard_score": score.standard_score,
+            "class_rank": score.class_rank,
+            "school_rank": score.school_rank
+        }
+
+    subject_names = sorted(subject_names, key=lambda x: (x != "总分", x))
+
+    titles = ["姓名", "标签", "班级"]
+    for subject_name in subject_names:
+        titles.extend([
+            f"{subject_name}成绩",
+            f"{subject_name}班次",
+            f"{subject_name}校次"
+        ])
+    ws.append(titles)
+
+    for student_id, student_info in student_dict.items():
+        row = [
+            student_info["name"],
+            student_info["label"],
+            student_info["class_name"]
+        ]
+
+        for subject_name in subject_names:
+            subject_data = student_info["subjects"].get(subject_name, {})
+            row.extend([
+                subject_data.get("score", ""),
+                subject_data.get("class_rank", ""),
+                subject_data.get("school_rank", "")
+            ])
+
+        ws.append(row)
+
+    cache_dir = Path(__file__).parents[3] / "cache"
+    os.makedirs(cache_dir, exist_ok=True)
+
+    filename = f"scoresheet_{exam_id}_{int(time.time())}.xlsx"
+    file_path = os.path.join(cache_dir, filename)
+
+    wb.save(file_path)
+
+    return send_file(
+        file_path,
+        as_attachment=True,
+        download_name=f"{exam.name}_成绩单.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

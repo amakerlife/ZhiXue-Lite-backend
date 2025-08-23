@@ -8,3 +8,4 @@ build
 .env
 geetest-solver
 logs
+cache
