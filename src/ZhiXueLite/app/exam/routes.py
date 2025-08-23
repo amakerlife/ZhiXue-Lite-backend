@@ -69,8 +69,14 @@ def get_exam_list():
     exams = db.session.scalars(stmt.order_by(desc(Exam.created_at))).all()
 
     paginated_exams = paginated_json(exams, page, per_page)
-    exam_list = [{"id": item.exam.id, "name": item.exam.name, "created_at": item.exam.created_at}
-                 for item in paginated_exams["items"]]
+    exam_list = []
+    for item in paginated_exams["items"]:
+        exam_list.append({
+            "id": item.exam.id,
+            "name": item.exam.name,
+            "created_at": item.exam.created_at,
+            "is_saved": item.exam.is_saved
+        })
 
     return jsonify({
         "success": True,
@@ -241,7 +247,7 @@ def generate_scoresheet(exam_id):
         subject_name = score.subject_name
         if subject_name not in subject_info:
             subject_info[subject_name] = score.sort
-            
+
         student_dict[student_id]["subjects"][subject_name] = {
             "score": score.score,
             "standard_score": score.standard_score,
