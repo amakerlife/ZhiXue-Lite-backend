@@ -156,6 +156,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     existing_score.standard_score = score.standard_score
                     existing_score.class_rank = score.classrank
                     existing_score.school_rank = score.schoolrank
+                    existing_score.sort = score.sort
                     session.flush()
                     continue
 
@@ -169,6 +170,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     standard_score=score.standard_score,
                     class_rank=score.classrank,
                     school_rank=score.schoolrank,
+                    sort=score.sort,
                 )
                 session.add(new_score)
 

@@ -68,9 +68,14 @@ class ExtendedTeacherAccount(TeacherAccount):
         subjects = json.loads(r.json()["result"]["allSubjectTopicSetListJSON"])
         subjectslist = {}
         for subject in subjects:
+            sort_value = subject.get("sort", 1)
             subjectslist[str(subject["subjectCode"])] = {
-                "id": subject["topicSetId"], "name": subject["subjectName"], "score": str(subject["standScore"]),
-                "is_group": str(subject.get("subjectGroupFlag", "0"))}
+                "id": subject["topicSetId"],
+                "name": subject["subjectName"],
+                "score": str(subject["standScore"]),
+                "is_group": str(subject.get("subjectGroupFlag", "0")),
+                "sort": sort_value
+            }
         return subjectslist
 
     @staticmethod
@@ -191,15 +196,16 @@ class ExtendedTeacherAccount(TeacherAccount):
                                                 student["userNum"], student["studentLabel"], student["className"],
                                                 student["allScore"], student["classRank"], student["schoolRank"])
                 student_info.add_subject_score("总分", student["allScore"], student["classRank"], student["schoolRank"],
-                                               -1, "0", str(total_score))
+                                               -1, "0", str(total_score), -1)
                 if "-" in student["schoolRank"] or "-" in student["classRank"]:
                     need_calc_rank = True
                 for score_info in student["scoreInfos"]:
                     subject_name = subjects[score_info["subjectCode"]]["name"]
+                    subject_sort = subjects[score_info["subjectCode"]]["sort"]
                     student_info.add_subject_score(subject_name, score_info["score"], score_info["classRank"],
                                                    score_info["schoolRank"], score_info["subjectCode"],
                                                    subjects[score_info["subjectCode"]]["id"],
-                                                   subjects[score_info["subjectCode"]]["score"])
+                                                   subjects[score_info["subjectCode"]]["score"], int(subject_sort))
                 students_list.append(student_info)
             sleep(0.5)
         if need_calc_rank:

@@ -122,6 +122,7 @@ class Score(BaseDBClass):
     subject_id: Mapped[str] = mapped_column(String(50))
     subject_name: Mapped[str] = mapped_column(String(50))
     class_name: Mapped[str] = mapped_column(String(50))
+    sort: Mapped[int] = mapped_column(Integer, default=1)
 
     score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 为空时表示原始数据无成绩，下同
     standard_score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)

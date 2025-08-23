@@ -172,7 +172,7 @@ def get_user_exam_score(exam_id):
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    stmt = select(Score).where(Score.exam_id == exam_id, Score.student_id == current_user.zhixue_account_id)
+    stmt = select(Score).where(Score.exam_id == exam_id, Score.student_id == current_user.zhixue_account_id).order_by(Score.sort)
     raw_scores = db.session.scalars(stmt).all()
     scores = []
     for raw_score in raw_scores:
@@ -183,6 +183,7 @@ def get_user_exam_score(exam_id):
             "standard_score": raw_score.standard_score,
             "class_rank": raw_score.class_rank,
             "school_rank": raw_score.school_rank,
+            "sort": raw_score.sort,
         })
 
     return jsonify({
@@ -225,7 +226,7 @@ def generate_scoresheet(exam_id):
     ws.title = "成绩单"
 
     student_dict = {}
-    subject_names = set()
+    subject_info = {}
 
     for score in scores_data:
         student_id = score.student_id
@@ -238,7 +239,9 @@ def generate_scoresheet(exam_id):
             }
 
         subject_name = score.subject_name
-        subject_names.add(subject_name)
+        if subject_name not in subject_info:
+            subject_info[subject_name] = score.sort
+            
         student_dict[student_id]["subjects"][subject_name] = {
             "score": score.score,
             "standard_score": score.standard_score,
@@ -246,7 +249,7 @@ def generate_scoresheet(exam_id):
             "school_rank": score.school_rank
         }
 
-    subject_names = sorted(subject_names, key=lambda x: (x != "总分", x))
+    subject_names = sorted(subject_info.keys(), key=lambda x: subject_info[x])
 
     titles = ["姓名", "标签", "班级"]
     for subject_name in subject_names:
@@ -274,7 +277,7 @@ def generate_scoresheet(exam_id):
 
         ws.append(row)
 
-    cache_dir = Path(__file__).parents[3] / "cache"
+    cache_dir = Path(__file__).parents[4] / "cache"
     os.makedirs(cache_dir, exist_ok=True)
 
     filename = f"scoresheet_{exam_id}_{int(time.time())}.xlsx"
