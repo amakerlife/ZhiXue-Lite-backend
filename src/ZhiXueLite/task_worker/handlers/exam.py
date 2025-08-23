@@ -119,7 +119,6 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         teacher_account = get_teacher(session, exam_id)
         teacher = login_teacher_session(teacher_account.cookie)
         student_scores = teacher.get_exam_scores(exam_id)
-        subjects = teacher.get_exam_subjects(exam_id)
         total_students = len(student_scores)
 
         for i, student_score in enumerate(student_scores):
@@ -141,8 +140,10 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     student_id=student_score.user_id,
                     exam_id=exam_id,
                     subject_id=score.topicsetid,
+                    subject_name=score.name if score.subjectcode != -1 else "总分",
                     class_name=student_score.class_name,
                     score=score.score,
+                    standard_score=score.standard_score,
                     class_rank=score.classrank,
                     school_rank=score.schoolrank,
                 )

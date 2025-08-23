@@ -1,9 +1,10 @@
+from typing import cast
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 from functools import wraps
 from sqlalchemy import select, desc
 from app.database import db
-from app.database.models import BackgroundTask, Exam, UserExam
+from app.database.models import Exam, Score, User, UserExam
 from app.task.repository import create_task
 from app.utils.paginate import paginated_json
 exam_bp = Blueprint("exam", __name__)
@@ -33,7 +34,7 @@ def get_exam_list():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(UserExam).where(UserExam.zhixue_id == current_user.zhixue.id).join(Exam)
+    stmt = select(UserExam).where(UserExam.zhixue_id == current_user.zhixue_account_id).join(Exam)
     if query:
         stmt = stmt.where(Exam.name.contains(query))
 
@@ -71,9 +72,9 @@ def fetch_exam_list():
 @exam_bp.route("/<string:exam_id>", methods=["GET"])
 @login_required
 @zhixue_account_required
-def get_exam_details(exam_id):
+def get_exam_info(exam_id):
     """
-    获取指定考试的详细基础信息
+    获取指定考试的基本信息
     """
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
@@ -86,6 +87,7 @@ def get_exam_details(exam_id):
             "id": exam.id,
             "name": exam.name,
             "school_id": exam.school_id,
+            "is_saved": exam.is_saved,
             "created_at": exam.created_at
         }
     }), 200
@@ -93,7 +95,7 @@ def get_exam_details(exam_id):
 @exam_bp.route("/fetch/<string:exam_id>", methods=["GET", "POST"])
 @login_required
 @zhixue_account_required
-def fetch_exam_details(exam_id):
+def fetch_exam(exam_id):
     """
     拉取指定考试的详细信息
     """
@@ -108,3 +110,38 @@ def fetch_exam_details(exam_id):
         "task_id": task.uuid,
         "message": "考试详情拉取任务已创建，请通过任务 ID 查询进度"
     }), 202
+
+@exam_bp.route("/score/<string:exam_id>", methods=["GET"])
+@login_required
+@zhixue_account_required
+def get_user_exam_score(exam_id):
+    """
+    获取用户在指定考试中的分数和详细信息
+    """
+    stmt = select(Exam).where(Exam.id == exam_id)
+    exam = db.session.scalar(stmt)
+    if not exam:
+        return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
+
+    stmt = select(Score).where(Score.exam_id == exam_id, Score.student_id == current_user.zhixue_account_id)
+    raw_scores = db.session.scalars(stmt).all()
+    scores = []
+    for raw_score in raw_scores:
+        scores.append({
+            "subject_id": raw_score.subject_id,
+            "subject_name": raw_score.subject_name,
+            "score": raw_score.score,
+            "standard_score": raw_score.standard_score,
+            "class_rank": raw_score.class_rank,
+            "school_rank": raw_score.school_rank,
+        })
+
+    return jsonify({
+        "success": True,
+        "id": exam.id,
+        "name": exam.name,
+        "school_id": exam.school_id,
+        "is_saved": exam.is_saved,
+        "created_at": exam.created_at,
+        "scores": scores
+    }), 200

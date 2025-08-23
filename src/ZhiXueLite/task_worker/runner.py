@@ -57,16 +57,6 @@ def execute_task(task_uuid: str, task_id: int, task_type: str, user_id: int, par
 
         except Exception as e:
             logger.error(f"Task failed: {task_uuid} - {str(e)}")
-            try:
-                update_task_status(
-                    session,
-                    task_uuid,
-                    TaskStatus.FAILED,
-                    error_message=str(e)
-                )
-                session.commit()
-            except Exception as db_error:
-                logger.error(f"Failed to update task status: {db_error}")
             return 1
 
 

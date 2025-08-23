@@ -9,6 +9,7 @@ class Score():
     schoolrank: str
     subjectcode: int  # -1 for 总分
     topicsetid: str
+    standard_score: str
 
 
 @dataclass
@@ -32,6 +33,7 @@ class StudentScoreInfo():
         school_rank: str,
         subject_code: int,
         topicsetid: str,
+        standard_score: str
     ):
         self.scores.append(Score(
             subject_name,
@@ -40,4 +42,5 @@ class StudentScoreInfo():
             school_rank,
             subject_code,
             topicsetid,
+            standard_score
         ))

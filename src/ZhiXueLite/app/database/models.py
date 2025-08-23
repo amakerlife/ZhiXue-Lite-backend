@@ -120,9 +120,11 @@ class Score(BaseDBClass):
     student_id: Mapped[str] = mapped_column(String(50), ForeignKey("students.id"))
     exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"))
     subject_id: Mapped[str] = mapped_column(String(50))
+    subject_name: Mapped[str] = mapped_column(String(50))
     class_name: Mapped[str] = mapped_column(String(50))
 
     score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 为空时表示原始数据无成绩，下同
+    standard_score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     class_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     school_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     score_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="ok")  # 状态，ok 正常，错误状态待发掘
