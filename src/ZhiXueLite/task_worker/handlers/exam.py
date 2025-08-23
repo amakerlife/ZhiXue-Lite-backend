@@ -132,7 +132,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                         name=student_score.username,
                         label=student_score.label,
                         no=student_score.studentno,
-                        user_num=student_score.usernum
+                        number=student_score.usernum
                     )
                     session.add(new_student)
                     session.flush()

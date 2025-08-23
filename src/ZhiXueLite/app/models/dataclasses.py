@@ -24,13 +24,6 @@ class StudentScoreInfo():
     school_rank: str
     scores: list[Score] = field(default_factory=list)
 
-    def __init__(self, **data):
-        super().__init__(**data)
-        self.scores = [
-            Score("总分", self.all_score, self.class_rank,
-                  self.school_rank, -1, "0")
-        ]
-
     def add_subject_score(
         self,
         subject_name: str,

@@ -90,7 +90,7 @@ def get_exam_details(exam_id):
         }
     }), 200
 
-@exam_bp.route("/<string:exam_id>/fetch", methods=["GET", "POST"])
+@exam_bp.route("/fetch/<string:exam_id>", methods=["GET", "POST"])
 @login_required
 @zhixue_account_required
 def fetch_exam_details(exam_id):

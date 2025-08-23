@@ -167,9 +167,11 @@ class ExtendedTeacherAccount(TeacherAccount):
             )
             data = r.json()["result"]
             for student in data["studentRank"]:
-                student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentNo"],  # type: ignore
+                student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentNo"],
                                                 student["userNum"], student["studentLabel"], student["className"],
                                                 student["allScore"], student["classRank"], student["schoolRank"])
+                student_info.add_subject_score("总分", student["allScore"], student["classRank"], student["schoolRank"],
+                                               -1, "0")
                 if "-" in student["schoolRank"] or "-" in student["classRank"]:
                     need_calc_rank = True
                 for score_info in student["scoreInfos"]:
