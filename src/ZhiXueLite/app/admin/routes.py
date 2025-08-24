@@ -79,3 +79,44 @@ def list_zhixue_accounts():
         "zhixue_accounts": account_list,
         "pagination": paginated_accounts["pagination"]
     }), 200
+
+
+@admin_bp.route("/zhixue/<string:zhixue_username>/users", methods=["GET"])
+def list_users_by_zhixue(zhixue_username):
+    """根据智学网账号列出绑定的用户"""
+    # page = request.args.get("page", 1, type=int)
+    # per_page = request.args.get("per_page", 10, type=int)
+
+    zhixue_account = db.session.scalar(select(ZhiXueStudentAccount).where(
+        ZhiXueStudentAccount.username == zhixue_username))
+    if zhixue_account is None:
+        return jsonify({"success": False, "message": "智学网账号未绑定"}), 400
+
+    binded_users = zhixue_account.users if zhixue_account.users else []
+    result = []
+    for user in binded_users:
+        result.append({"username": user.username})
+    result = {"total": len(result), "users": result}
+
+    return jsonify({"success": True, "binding_info": result}), 200
+
+
+@admin_bp.route("/zhixue/<string:zhixue_username>/unbind/<string:username>", methods=["POST"])
+def unbind_user(zhixue_username, username):
+    """根据智学网账号和用户名解绑用户"""
+    zhixue_account = db.session.scalar(select(ZhiXueStudentAccount).where(
+        ZhiXueStudentAccount.username == zhixue_username))
+    if zhixue_account is None:
+        return jsonify({"success": False, "message": "智学网账号未绑定"}), 400
+
+    user = db.session.scalar(select(User).where(User.username == username))
+    if user is None:
+        return jsonify({"success": False, "message": "用户不存在"}), 404
+
+    if zhixue_account.users is None or user not in zhixue_account.users:
+        return jsonify({"success": False, "message": "用户未绑定该智学网账号"}), 400
+
+    user.zhixue = None
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "已解绑该智学网账号"}), 200

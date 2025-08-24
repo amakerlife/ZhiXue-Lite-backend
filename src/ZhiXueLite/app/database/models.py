@@ -69,7 +69,8 @@ class ZhiXueStudentAccount(BaseDBClass):
             "username": self.username,
             "realname": self.realname,
             "school_id": self.school_id,
-            "school_name": self.school.name if self.school else None
+            "school_name": self.school.name if self.school else None,
+            "binded_count": len(self.users) if self.users else 0
         }
 
 
@@ -247,5 +248,7 @@ class User(UserMixin, BaseDBClass):
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "registration_ip": self.registration_ip,
             "last_login_ip": self.last_login_ip,
-            "zhixue_account_id": self.zhixue_account_id,
+            "zhixue_username": self.zhixue.username if self.zhixue else None,
+            "zhixue_realname": self.zhixue.realname if self.zhixue else None,
+            "zhixue_school": self.zhixue.school.name if self.zhixue else None,
         }

@@ -163,7 +163,7 @@ def already_bound_exempt():
     return bool(user and user.zhixue is not None)
 
 
-@user_bp.route("/connect", methods=["POST"])
+@user_bp.route("/zhixue/bind", methods=["POST"])
 @login_required
 @limiter.limit("3 per 20 minutes",
                key_func=get_ip_limit,
@@ -234,7 +234,7 @@ def connect_zhixue():
     return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
 
 
-@user_bp.route("/disconnect", methods=["POST"])
+@user_bp.route("/zhixue/unbind", methods=["POST"])
 @login_required
 def disconnect_zhixue():
     """解绑智学网账号"""
@@ -242,3 +242,25 @@ def disconnect_zhixue():
     user.zhixue = None
     db.session.commit()
     return jsonify({"success": True, "message": "智学网账号已解绑"}), 200
+
+
+@user_bp.route("/zhixue/binding_info", methods=["GET"])
+@login_required
+def get_binding_info():
+    """获取智学网账号绑定状况"""
+    user = db.get_or_404(User, current_user.id)
+    if not user.zhixue:
+        return jsonify({"success": False, "message": "智学网账号未绑定"}), 400
+
+    stmt = select(ZhiXueStudentAccount).where(ZhiXueStudentAccount.id == user.zhixue.id)
+    zhixue_account = db.session.scalar(stmt)
+    if zhixue_account is None:
+        return jsonify({"success": False, "message": "智学网账号未绑定"}), 400
+
+    binded_users = zhixue_account.users if zhixue_account.users else []
+
+    result = []
+    for user in binded_users:
+        result.append({"username": user.username})
+
+    return jsonify({"success": True, "binding_info": result}), 200
