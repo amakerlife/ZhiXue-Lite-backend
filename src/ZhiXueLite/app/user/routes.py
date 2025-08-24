@@ -31,6 +31,8 @@ def signup():  # TODO: 添加验证码
     if not all(key in data for key in ("username", "password", "email")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
 
+    if "@" in data["username"]:
+        return jsonify({"success": False, "message": "用户名不合法"}), 400
     if db.session.scalar(select(User).where(User.username == data["username"])):
         return jsonify({"success": False, "message": "用户名已被使用"}), 400
     if db.session.scalar(select(User).where(User.email == data["email"])):
@@ -62,15 +64,31 @@ def signup():  # TODO: 添加验证码
 
 @user_bp.route("/login", methods=["POST"])
 def login():
-    """用户登录"""
+    """用户登录，支持用户名或邮箱登录
+
+    请求参数:
+    - username: 用户名或邮箱 (弃用，向下兼容)
+    - login: 用户名或邮箱
+    - password: 密码
+    """
     data = request.get_json()
 
-    if not all(key in data for key in ("username", "password")):
-        return jsonify({"success": False, "message": "缺少必要字段"}), 400
+    login_field = data.get("login") or data.get("username")
+    password = data.get("password")
 
-    user = db.session.scalar(select(User).where(User.username == data["username"]))
-    if not user or not user.check_password(data["password"]):
-        return jsonify({"success": False, "message": "用户名或密码错误"}), 401
+    if not login_field or not password:
+        return jsonify({"success": False, "message": "缺少登录凭据或密码"}), 400
+
+    if "@" in login_field:
+        # 邮箱
+        user = db.session.scalar(select(User).where(User.email == login_field))
+        if not user or not user.check_password(password):
+            return jsonify({"success": False, "message": "用户名或密码错误"}), 401
+    else:
+        # 用户名
+        user = db.session.scalar(select(User).where(User.username == login_field))
+        if not user or not user.check_password(password):
+            return jsonify({"success": False, "message": "用户名或密码错误"}), 401
 
     if not user.is_active:
         return jsonify({"success": False, "message": "用户已被禁用"}), 403
@@ -175,14 +193,19 @@ def connect_zhixue():
     zhixue_username = data["username"]
     zhixue_password = data["password"]
 
+    zhixue_record = db.session.scalar(select(ZhiXueStudentAccount).where(
+        ZhiXueStudentAccount.username == zhixue_username))
+    if zhixue_record and zhixue_password == zhixue_record.password:
+        user.zhixue = zhixue_record
+        db.session.commit()
+        return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
+
     try:
         zhixue_account = login_student(zhixue_username, zhixue_password)
     except Exception as e:
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库
-    zhixue_record = db.session.scalar(select(ZhiXueStudentAccount).where(
-        ZhiXueStudentAccount.username == zhixue_username))
     if zhixue_record:
         zhixue_record.password = zhixue_password
         zhixue_record.cookie = zhixue_account.get_cookie()
