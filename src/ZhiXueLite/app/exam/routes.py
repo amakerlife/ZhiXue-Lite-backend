@@ -141,6 +141,9 @@ def fetch_exam(exam_id):
     """
     force_refresh = request.args.get("force_refresh", "false").lower() == "true"
 
+    if current_user.role != "admin" and force_refresh:
+        return jsonify({"success": False, "message": "权限不足，无法强制刷新"}), 403
+
     task = create_task(
         task_type="fetch_exam_details",
         user_id=current_user.id,

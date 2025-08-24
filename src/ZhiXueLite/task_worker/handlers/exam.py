@@ -114,6 +114,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         raise ValueError(f"Exam not found: {exam_id}")
     if exam.is_saved and not force_refresh:
         update_task_progress(session, task_id, 100, "考试已被保存，无需重复拉取")
+        return {"success": True}
 
     try:
         teacher_account = get_teacher(session, exam_id)

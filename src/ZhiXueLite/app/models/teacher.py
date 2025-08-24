@@ -177,10 +177,11 @@ class ExtendedTeacherAccount(TeacherAccount):
         students_list = []
         need_calc_rank = False
 
-        total_score = 0
-        for subject_name, subject_detail in subjects.items():
-            if subject_detail["is_group"] == "0":
-                total_score += float(subject_detail["score"])
+        r = self.get_session().post(
+            "https://www.zhixue.com/api-teacher/api/studentScore/studentExamScore",
+            data={"examId": examid}
+        )
+        total_score = r.json()["result"]["schoolExamArchive"]["standardScore"]
 
         for page in range(1, pages + 1):
             r = self.get_session().post(
