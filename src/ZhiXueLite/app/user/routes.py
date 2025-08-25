@@ -7,6 +7,7 @@ from app.database.models import User, School, ZhiXueStudentAccount
 from datetime import datetime
 from app import limiter
 from flask_limiter.util import get_remote_address
+from app.utils.turnstile import verify_turnstile_token
 
 user_bp = Blueprint("user", __name__)
 
@@ -24,12 +25,20 @@ def get_user_limit():
 
 
 @user_bp.route("/signup", methods=["POST"])
-def signup():  # TODO: 添加验证码
+def signup():
     """用户注册"""
     data = request.get_json()
 
     if not all(key in data for key in ("username", "password", "email")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
+
+    turnstile_token = data.get("turnstile_token")
+    verification_result = verify_turnstile_token(turnstile_token, get_remote_address())
+    if not verification_result.get("success", False):
+        return jsonify({
+            "success": False,
+            "message": verification_result.get("message", "验证码验证失败")
+        }), 400
 
     if "@" in data["username"]:
         return jsonify({"success": False, "message": "用户名不合法"}), 400
@@ -70,6 +79,7 @@ def login():
     - username: 用户名或邮箱 (弃用，向下兼容)
     - login: 用户名或邮箱
     - password: 密码
+    - turnstile_token: Turnstile 验证码令牌（可选）
     """
     data = request.get_json()
 
@@ -78,6 +88,14 @@ def login():
 
     if not login_field or not password:
         return jsonify({"success": False, "message": "缺少登录凭据或密码"}), 400
+
+    turnstile_token = data.get("turnstile_token")
+    verification_result = verify_turnstile_token(turnstile_token, get_remote_address())
+    if not verification_result.get("success", False):
+        return jsonify({
+            "success": False,
+            "message": verification_result.get("message", "验证码验证失败")
+        }), 400
 
     if "@" in login_field:
         # 邮箱
@@ -185,6 +203,14 @@ def connect_zhixue():
 
     if not all(key in data for key in ("username", "password")):
         return jsonify({"success": False, "message": "缺少必要字段"}), 400
+
+    turnstile_token = data.get("turnstile_token")
+    verification_result = verify_turnstile_token(turnstile_token, get_remote_address())
+    if not verification_result.get("success", False):
+        return jsonify({
+            "success": False,
+            "message": verification_result.get("message", "验证码验证失败")
+        }), 400
 
     user = db.get_or_404(User, current_user.id)
     if user.zhixue:

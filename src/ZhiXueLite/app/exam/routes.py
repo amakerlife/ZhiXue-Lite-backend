@@ -314,8 +314,8 @@ def generate_answersheet(exam_id, subject_id):
     try:
         teacher_account = get_teacher(exam_id)
         teacher = login_teacher_session(teacher_account.cookie)
-    except FailedToGetTeacherAccountError as e:
-        return jsonify({"success": False, "message": str(e)}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": "Unknown error occurred"}), 500
 
     student_id = request.args.get("student_id", None)
     if student_id is not None:
