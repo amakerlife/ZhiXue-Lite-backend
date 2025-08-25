@@ -6,6 +6,8 @@ from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user
 from flask_session import Session
 from flask_migrate import Migrate
+from werkzeug.middleware.proxy_fix import ProxyFix
+
 from app.database import db, init_db
 from app.config import config
 from app.utils.logger import setup_logger
@@ -27,8 +29,10 @@ limiter = Limiter(
 
 def create_app():
     app = Flask("ZhiXueLite-backend")
-
     app.config.from_object(config)
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+    )
 
     # 配置CORS
     frontend_urls = os.getenv("FRONTEND_URLS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
