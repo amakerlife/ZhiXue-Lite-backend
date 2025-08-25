@@ -7,12 +7,16 @@ from app.database import db
 from app.database.models import School, ZhiXueTeacherAccount
 from app.models.teacher import login_teacher
 from app.utils.paginate import paginated_json
+
 teacher_bp = Blueprint("teacher", __name__)
 
 
 @teacher_bp.before_request
 @login_required
 def is_admin():
+    if request.method == "OPTIONS":
+        return
+
     if current_user.role != "admin":
         return jsonify({"success": False, "message": "Access Denied"}), 403
 

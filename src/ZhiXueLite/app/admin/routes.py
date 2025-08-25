@@ -13,6 +13,9 @@ admin_bp = Blueprint("admin", __name__)
 @admin_bp.before_request
 @login_required
 def is_admin():
+    if request.method == "OPTIONS":
+        return
+
     if current_user.role != "admin":
         return jsonify({"success": False, "message": "Access Denied"}), 403
 
