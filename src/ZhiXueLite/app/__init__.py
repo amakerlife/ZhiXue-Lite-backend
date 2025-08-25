@@ -11,8 +11,6 @@ from app.config import config
 from app.utils.logger import setup_logger
 import app.database.models  # 确保模型被导入以便 SQLAlchemy 可以识别它们
 
-config_name = os.getenv("FLASK_ENV") or "default"
-
 
 def get_user_id():
     """获取当前用户ID用于频率限制"""
@@ -27,14 +25,14 @@ limiter = Limiter(
 )
 
 
-def create_app(config_name=config_name):
+def create_app():
     app = Flask("ZhiXueLite-backend")
 
-    app.config.from_object(config[config_name])
+    app.config.from_object(config)
 
     # 配置CORS
     frontend_urls = os.getenv("FRONTEND_URLS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
-    CORS(app, 
+    CORS(app,
          origins=frontend_urls,
          supports_credentials=True,
          allow_headers=["Content-Type", "Authorization"],

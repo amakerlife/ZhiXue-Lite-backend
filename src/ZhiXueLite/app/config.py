@@ -37,6 +37,7 @@ class Config:
 
     # --- 其他配置 ---
     GEETEST_CAPTCHA_URL = os.environ["CAPTCHA_URL"]
+    FONT_PATH = os.environ["FONT_PATH"]
 
 
 class DevelopmentConfig(Config):
@@ -51,8 +52,12 @@ class ProductionConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ["PROD_DATABASE_URL"]
 
 
-config = {
+config_mapping = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
     "default": ProductionConfig
 }
+
+config_name = os.getenv("FLASK_ENV") or "default"
+
+config = config_mapping[config_name]

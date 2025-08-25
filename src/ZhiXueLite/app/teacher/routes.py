@@ -10,18 +10,14 @@ from app.utils.paginate import paginated_json
 teacher_bp = Blueprint("teacher", __name__)
 
 
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if current_user.role != "admin":
-            return jsonify({"success": False, "message": "权限不足"}), 403
-        return f(*args, **kwargs)
-    return decorated_function
+@teacher_bp.before_request
+@login_required
+def is_admin():
+    if current_user.role != "admin":
+        return jsonify({"success": False, "message": "Access Denied"}), 403
 
 
 @teacher_bp.route("/list", methods=["GET"])
-@login_required
-@admin_required
 def get_teacher_list():
     """获取教师账号列表"""
     page = request.args.get("page", 1, type=int)
@@ -42,6 +38,7 @@ def get_teacher_list():
         "username": teacher.username,
         "realname": teacher.realname,
         "school_name": teacher.school.name,
+        "login_method": teacher.login_method
     } for teacher in paginated_teachers["items"]]
 
     return jsonify({
@@ -52,8 +49,6 @@ def get_teacher_list():
 
 
 @teacher_bp.route("/add", methods=["POST"])
-@login_required
-@admin_required
 def add_teacher():
     """添加教师账号"""
     data = request.get_json()
@@ -102,6 +97,7 @@ def add_teacher():
                 "username": teacher.username,
                 "realname": teacher.realname,
                 "school_name": teacher.school.name,
+                "login_method": teacher.login_method
             }
         }), 201
 
@@ -111,8 +107,6 @@ def add_teacher():
 
 
 @teacher_bp.route("/<string:user_name>", methods=["PUT"])
-@login_required
-@admin_required
 def update_teacher(user_name):
     """更新教师账号"""
     teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(ZhiXueTeacherAccount.username == user_name))
@@ -146,8 +140,6 @@ def update_teacher(user_name):
 
 
 @teacher_bp.route("/<string:user_name>", methods=["DELETE"])
-@login_required
-@admin_required
 def delete_teacher(user_name):
     """删除教师账号"""
     teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(ZhiXueTeacherAccount.username == user_name))
@@ -161,8 +153,6 @@ def delete_teacher(user_name):
 
 
 @teacher_bp.route("/<string:user_name>", methods=["GET"])
-@login_required
-@admin_required
 def get_teacher_detail(user_name):
     """获取教师账号详情"""
     teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(ZhiXueTeacherAccount.username == user_name))

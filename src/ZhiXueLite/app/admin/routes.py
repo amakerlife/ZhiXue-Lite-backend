@@ -1,8 +1,10 @@
+from os import rmdir
+from pathlib import Path
 from flask import Blueprint, jsonify, request
 from flask_login import login_required, current_user
 from sqlalchemy import select
 from app.database import db
-from app.database.models import School, ZhiXueStudentAccount, User
+from app.database.models import Exam, School, ZhiXueStudentAccount, User
 from app.utils.paginate import paginated_json
 
 admin_bp = Blueprint("admin", __name__)
@@ -81,6 +83,35 @@ def list_zhixue_accounts():
     }), 200
 
 
+@admin_bp.route("/list/exams", methods=["GET"])
+def list_exams():
+    """列出所有考试"""
+    page = request.args.get("page", 1, type=int)
+    per_page = request.args.get("per_page", 10, type=int)
+    query = request.args.get("query", "", type=str)
+
+    stmt = select(Exam).order_by(Exam.created_at.desc())
+    if query:
+        stmt = stmt.where(Exam.name.contains(query) | Exam.id.contains(query))
+
+    exams = db.session.scalars(stmt).all()
+    paginated_exams = paginated_json(exams, page, per_page)
+    exam_list = [
+        {
+            "id": exam.id,
+            "name": exam.name,
+            "is_saved": exam.is_saved,
+            "school": exam.school.name,
+            "created_at": exam.created_at
+        } for exam in paginated_exams["items"]]
+
+    return jsonify({
+        "success": True,
+        "exams": exam_list,
+        "pagination": paginated_exams["pagination"]
+    }), 200
+
+
 @admin_bp.route("/zhixue/<string:zhixue_username>/users", methods=["GET"])
 def list_users_by_zhixue(zhixue_username):
     """根据智学网账号列出绑定的用户"""
@@ -120,3 +151,22 @@ def unbind_user(zhixue_username, username):
     db.session.commit()
 
     return jsonify({"success": True, "message": "已解绑该智学网账号"}), 200
+
+
+# TODO: DELETE /admin/cache/exams; DELETE /admin/cache/exams/{exam_id} etc
+@admin_bp.route("/cache", methods=["DELETE"])
+def clear_cache():
+    """清除缓存"""
+    cache_dir = Path(__file__).parents[4] / "cache"
+
+    try:
+        for item in cache_dir.glob("*"):
+            if item.is_file():
+                item.unlink()
+            elif item.is_dir():
+                rmdir(item)
+
+        return jsonify({"success": True, "message": "缓存已清除"}), 200
+
+    except Exception as e:
+        return jsonify({"success": False, "message": "清除缓存失败", "error": str(e)}), 500

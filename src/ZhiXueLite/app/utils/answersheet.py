@@ -4,9 +4,10 @@ from typing import Tuple, cast
 import requests
 from PIL import Image, ImageDraw, ImageFont
 
+from app.config import config
 from app.models.exceptions import ZhixueError
 
-font_path = "TODO"
+font_path = config.FONT_PATH
 
 def get_size(text: str, font: ImageFont.FreeTypeFont) -> Tuple[float, float]:
     """获取文本的宽度和高度"""
@@ -110,7 +111,7 @@ def draw_answersheet(
                       / paper_height)
             right = left + width
             bottom = top + height
-            problems = cast(list[int], position["ixlist"])
+            problems = cast(list[int], position["ixList"])
 
             # 绘制选择题每小题得分
             sum_score, standard_sum_score = 0.0, 0.0

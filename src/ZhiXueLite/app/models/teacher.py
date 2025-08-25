@@ -14,24 +14,14 @@ from app.utils.login_zhixue import get_session_by_captcha, set_user_session, upd
 
 class ExtendedTeacherAccount(TeacherAccount):
 
-    def update_login_status(self):
+    def update_login_status(self) -> bool:
         """
         更新登录状态，如果更新了则保存新 cookie 到数据库（仅在 Flask 上下文中）
+
+        Returns:
+            bool: 是否更新了 session
         """
-        updated = update_login_status(self)
-        if updated:
-            try:
-                # 检查是否在Flask上下文中
-                from flask import has_app_context
-                if has_app_context():
-                    from app.database import db
-                    from app.database.models import ZhiXueTeacherAccount
-                    account = db.session.get(ZhiXueTeacherAccount, self.id)
-                    if account:
-                        account.cookie = self.get_cookie()
-                        db.session.commit()
-            except ImportError:
-                pass
+        return update_login_status(self)
 
     def get_cookie(self) -> str:
         """
@@ -406,5 +396,20 @@ def login_teacher_session(cookie: str) -> ExtendedTeacherAccount:
     """
     session = set_user_session(cookie)
     account = ExtendedTeacherAccount(session)
-    account.update_login_status()
-    return account.set_base_info().set_advanced_info()
+    updated = account.update_login_status()
+    teacher_account = account.set_base_info().set_advanced_info()
+    if updated:
+        try:
+            # 检查是否在Flask上下文中
+            from flask import has_app_context
+            if has_app_context():
+                from app.database import db
+                from app.database.models import ZhiXueTeacherAccount
+                account = db.session.get(ZhiXueTeacherAccount, teacher_account.id)
+                if account:
+                    account.cookie = teacher_account.get_cookie()
+                    db.session.commit()
+        except ImportError:
+            pass
+
+    return teacher_account

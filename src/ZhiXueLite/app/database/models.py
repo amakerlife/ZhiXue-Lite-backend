@@ -201,7 +201,7 @@ class User(UserMixin, BaseDBClass):
     """用户模型"""
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(120), unique=True, index=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(200))

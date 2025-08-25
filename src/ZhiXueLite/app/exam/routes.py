@@ -8,7 +8,9 @@ import time
 from openpyxl import Workbook
 from sqlalchemy import select, desc
 from app.database import db
-from app.database.models import Exam, Score, UserExam, Student
+from app.database.models import Exam, Score, UserExam, Student, ZhiXueTeacherAccount
+from app.models.exceptions import FailedToGetTeacherAccountError
+from app.models.teacher import login_teacher_session
 from app.task.repository import create_task
 from app.utils.paginate import paginated_json
 from app import limiter
@@ -45,6 +47,17 @@ def admin_or_special_user_required(f):
             return jsonify({"success": False, "message": "权限不足，仅管理员可使用此功能"}), 403
         return f(*args, **kwargs)
     return decorated_function
+
+
+def get_teacher(exam_id: str):
+    school_id = db.session.scalar(select(Exam.school_id).where(Exam.id == exam_id))
+    if not school_id:
+        raise FailedToGetTeacherAccountError(f"teacher not found for exam_id: {exam_id}")
+
+    teacher = db.session.scalar(select(ZhiXueTeacherAccount).where(ZhiXueTeacherAccount.school_id == school_id))
+    if teacher is None:
+        raise FailedToGetTeacherAccountError(f"teacher not found for school_id: {school_id}")
+    return teacher
 
 
 @exam_bp.route("/list", methods=["GET"])
@@ -124,13 +137,14 @@ def get_exam_info(exam_id):
             "id": exam.id,
             "name": exam.name,
             "school_id": exam.school_id,
+            "school_name": exam.school.name,
             "is_saved": exam.is_saved,
             "created_at": exam.created_at
         }
     }), 200
 
 
-@exam_bp.route("/fetch/<string:exam_id>", methods=["GET", "POST"])
+@exam_bp.route("/<string:exam_id>/fetch", methods=["GET", "POST"])
 @login_required
 @zhixue_account_required
 @limiter.limit("5 per 20 minutes", key_func=get_user_limit)
@@ -157,7 +171,7 @@ def fetch_exam(exam_id):
     }), 202
 
 
-@exam_bp.route("/score/<string:exam_id>", methods=["GET"])
+@exam_bp.route("/<string:exam_id>/score", methods=["GET"])
 @login_required
 @zhixue_account_required
 def get_user_exam_score(exam_id):
@@ -169,7 +183,8 @@ def get_user_exam_score(exam_id):
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    stmt = select(Score).where(Score.exam_id == exam_id, Score.student_id == current_user.zhixue_account_id).order_by(Score.sort)
+    stmt = select(Score).where(Score.exam_id == exam_id, Score.student_id ==
+                               current_user.zhixue_account_id).order_by(Score.sort)
     raw_scores = db.session.scalars(stmt).all()
     scores = []
     for raw_score in raw_scores:
@@ -194,7 +209,7 @@ def get_user_exam_score(exam_id):
     }), 200
 
 
-@exam_bp.route("/scoresheet/<string:exam_id>", methods=["GET"])
+@exam_bp.route("/<string:exam_id>/scoresheet", methods=["GET"])
 @login_required
 @admin_or_special_user_required
 def generate_scoresheet(exam_id):
@@ -287,4 +302,49 @@ def generate_scoresheet(exam_id):
         as_attachment=True,
         download_name=f"{exam.name}_成绩单.xlsx",
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+@exam_bp.route("/<string:exam_id>/subject/<string:subject_id>/answersheet", methods=["GET"])
+@login_required
+def generate_answersheet(exam_id, subject_id):
+    """
+    生成指定考试中指定科目的答题卡
+    """
+    try:
+        teacher_account = get_teacher(exam_id)
+        teacher = login_teacher_session(teacher_account.cookie)
+    except FailedToGetTeacherAccountError as e:
+        return jsonify({"success": False, "message": str(e)}), 404
+
+    student_id = request.args.get("student_id", None)
+    if student_id is not None:
+        if student_id != current_user.zhixue_account_id:
+            return jsonify({"success": False, "message": "Access denied"}), 403
+    else:
+        student_id = current_user.zhixue_account_id
+
+    cache_dir = Path(__file__).parents[4] / "cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    filename = f"answersheet_{exam_id}_{subject_id}_{student_id}.png"
+    file_path = os.path.join(cache_dir, filename)
+
+    if os.path.exists(file_path):
+        return send_file(
+            file_path,
+            download_name=f"answersheet_{exam_id}_{subject_id}_{student_id}.png",
+            mimetype="image/png"
+        )
+
+    try:
+        image = teacher.process_answersheet(subject_id, student_id)
+    except Exception as e:
+        return jsonify({"success": False, "message": "Unknown error occurred"}), 500
+
+    image.save(file_path)
+
+    return send_file(
+        file_path,
+        download_name=f"answersheet_{exam_id}_{subject_id}_{student_id}.png",
+        mimetype="image/png"
     )
