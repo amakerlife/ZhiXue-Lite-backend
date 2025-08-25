@@ -4,10 +4,8 @@ services:
   db:
     image: postgres:17
     restart: unless-stopped
-    environment:
-      POSTGRES_DB: zhixuelite
-      POSTGRES_USER: zhixuelite
-      POSTGRES_PASSWORD: zhixuelite_password
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -23,14 +21,8 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
-    environment:
-      - FLASK_ENV=production
-      - PROD_SECRET_KEY=your-production-secret-key-change-this
-      - PROD_DATABASE_URL=postgresql://zhixuelite:zhixuelite_password@db:5432/zhixuelite
-      - CAPTCHA_URL=your-captcha-url
-      - LOG_LEVEL=INFO
-      - FRONTEND_URLS=http://localhost:3000,http://localhost:5173
-      - FONT_PATH=/app/assets/msyh.ttc
+    env_file:
+      - .env
     volumes:
       - ./logs:/app/logs
       - ./cache:/app/cache
@@ -44,16 +36,12 @@ services:
         gunicorn --config gunicorn.conf.py src.ZhiXueLite.main:app
       "
 
-  # Task worker service (可选)
+  # Task worker service
   task-worker:
     build: .
     restart: unless-stopped
-    environment:
-      - FLASK_ENV=production
-      - PROD_SECRET_KEY=your-production-secret-key-change-this
-      - PROD_DATABASE_URL=postgresql://zhixuelite:zhixuelite_password@db:5432/zhixuelite
-      - LOG_LEVEL=INFO
-      - FONT_PATH=/app/assets/msyh.ttc
+    env_file:
+      - .env
     volumes:
       - ./logs:/app/logs
       - ./cache:/app/cache

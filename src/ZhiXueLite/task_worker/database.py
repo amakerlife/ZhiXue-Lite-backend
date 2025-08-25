@@ -13,8 +13,7 @@ def init_db():
     if SessionLocal:
         return
 
-    config_name = os.getenv("FLASK_ENV") or "default"
-    app_config = config[config_name]
+    app_config = config
     engine = create_engine(
         app_config.SQLALCHEMY_DATABASE_URI,
         **app_config.SQLALCHEMY_ENGINE_OPTIONS
