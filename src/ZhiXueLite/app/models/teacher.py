@@ -213,7 +213,8 @@ class ExtendedTeacherAccount(TeacherAccount):
                        list[dict[str, int | float | list[dict[str, float | str]]]]
                        ]],
         list[str],
-        str
+        str,
+        bool
     ]:
         """
         获取答题卡数据
@@ -221,7 +222,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             subjectid: 学科 ID
             stuid: 学生 ID
         Returns:
-            Tuple: 题号对应情况, 每页位置信息, 客观题答案, 作答及批改详情, 原卷链接, 纸张类型
+            Tuple: 题号对应情况, 每页位置信息, 客观题答案, 作答及批改详情, 原卷链接, 纸张类型，是否为绝对坐标
         """
         self.update_login_status()
         r = self.get_session().post(
@@ -242,10 +243,10 @@ class ExtendedTeacherAccount(TeacherAccount):
 
         topic_mapping = data["markingTopicDetail"]  # 题号对应情况
         page_positions = {}  # 每页位置信息
+        is_absolute = False  # 是否为绝对坐标
         page_index_origin = 0
         for page in data["sheetDatas"]["answerSheetLocationDTO"]["pageSheets"]:
             page_index = page["pageIndex"]
-            page_positions[page_index] = []
             for section in page["sections"]:
                 out_left = section["contents"]["position"]["left"]
                 out_top = section["contents"]["position"]["top"]
@@ -256,6 +257,8 @@ class ExtendedTeacherAccount(TeacherAccount):
                     if position == "":
                         use_outside_position = True
                         break
+                    if page_index not in page_positions:
+                        page_positions[page_index] = []
                     if (flag or position["left"] <= 0 or position["top"] <= 0 or position["left"] < out_left or
                             position["top"] < out_top):
                         position["left"] += out_left
@@ -269,14 +272,11 @@ class ExtendedTeacherAccount(TeacherAccount):
                         "ixList": content["ixList"]
                     })
                 if use_outside_position:
+                    is_absolute = True
                     page_index = page_index_origin
                     if page_index not in page_positions:
                         page_positions[page_index] = []
                     position = section["contents"]["position"]
-                    if (position["left"] <= 0 or position["top"] <= 0 or position["left"] < out_left or
-                            position["top"] < out_top):
-                        position["left"] += out_left
-                        position["top"] += out_top
                     page_positions[page_index].append({
                         "height": position["height"],
                         "left": position["left"],
@@ -284,7 +284,6 @@ class ExtendedTeacherAccount(TeacherAccount):
                         "width": position["width"],
                         "ixList": section["contents"]["branch"][0]["ixList"]
                     })
-                    # logger.debug(f"Page {page_index}: {page_positions[page_index]}")
             page_index_origin += 1
         # 客观题答案
         objective_answer = {}
@@ -319,7 +318,7 @@ class ExtendedTeacherAccount(TeacherAccount):
         paper_type = json.loads(data["answerSheetLocation"])[
             "paperType"]  # 纸张类型
 
-        return topic_mapping, page_positions, objective_answer, answer_details, sheet_images, paper_type
+        return topic_mapping, page_positions, objective_answer, answer_details, sheet_images, paper_type, is_absolute
 
     def process_answersheet(self, subjectid: str, stuid: str):
         """
@@ -330,14 +329,14 @@ class ExtendedTeacherAccount(TeacherAccount):
             stuid: 学生 ID
         """
         try:
-            topic_mapping, page_positions, objective_answer, answer_details, sheet_images, paper_type \
+            topic_mapping, page_positions, objective_answer, answer_details, sheet_images, paper_type, is_absolute \
                 = self.get_answersheet_data(subjectid, stuid)
         except Exception as e:
             logger.error(f"Failed to get answersheet data: {e}")
             raise ZhixueError("Failed to get answersheet data")
         try:
             image = draw_answersheet(topic_mapping, page_positions, objective_answer,
-                                     answer_details, sheet_images, paper_type)
+                                     answer_details, sheet_images, paper_type, is_absolute)
         except Exception as e:
             logger.error(f"Failed to draw answersheet: {e}")
             raise ZhixueError("Failed to draw answersheet")

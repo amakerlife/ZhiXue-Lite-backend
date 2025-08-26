@@ -83,7 +83,8 @@ def draw_answersheet(
                                    list[dict[str, int | float | list[dict[str, float | str]]]]
                                    ]],
     sheet_images: list[str],
-    paper_type: str
+    paper_type: str,
+    is_absolute: bool
 ) -> Image.Image:
     images = []
     for i, image_url in enumerate(sheet_images):
@@ -104,11 +105,17 @@ def draw_answersheet(
 
         for position in page_positions[i]:
             # 计算矩形坐标
-            left = cast(int, position["left"]) * image_width / paper_width
-            top = cast(int, position["top"]) * image_height / paper_height
-            width = cast(int, position["width"]) * image_width / paper_width
-            height = (cast(int, position["height"]) * image_height
-                      / paper_height)
+            left = cast(int, position["left"])
+            top = cast(int, position["top"])
+            width = cast(int, position["width"])
+            height = cast(int, position["height"])
+
+            if not is_absolute:  # 缩放相对坐标
+                left = left * image_width / paper_width
+                top = top * image_height / paper_height
+                width = width * image_width / paper_width
+                height = height * image_height / paper_height
+
             right = left + width
             bottom = top + height
             problems = cast(list[int], position["ixList"])
