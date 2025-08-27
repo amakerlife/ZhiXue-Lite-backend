@@ -40,11 +40,21 @@ def zhixue_account_required(f):
     return decorated_function
 
 
-def admin_or_special_user_required(f):
+def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if current_user.role != "admin":
+        if not current_user.is_admin:
             return jsonify({"success": False, "message": "权限不足，仅管理员可使用此功能"}), 403
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def data_access_required(f):
+    """需要数据访问权限（管理员或数据查看者）"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.can_view_all_data:
+            return jsonify({"success": False, "message": "权限不足，需要数据查看权限"}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -121,7 +131,6 @@ def fetch_exam_list():
 
 @exam_bp.route("/<string:exam_id>", methods=["GET"])
 @login_required
-@zhixue_account_required
 def get_exam_info(exam_id):
     """
     获取指定考试的基本信息
@@ -131,12 +140,16 @@ def get_exam_info(exam_id):
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    stmt = select(UserExam).where(
-        (UserExam.zhixue_id == current_user.zhixue_account_id) &
-        (UserExam.exam_id == exam.id)
-    )
-    if not db.session.scalar(stmt):
-        return jsonify({"success": False, "message": "无权访问该考试"}), 403
+    if not current_user.can_view_all_data:
+        if not current_user.zhixue:
+            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
+
+        stmt = select(UserExam).where(
+            (UserExam.zhixue_id == current_user.zhixue_account_id) &
+            (UserExam.exam_id == exam_id)
+        )
+        if not db.session.scalar(stmt):
+            return jsonify({"success": False, "message": "无权访问该考试"}), 403
 
     return jsonify({
         "success": True,
@@ -162,7 +175,7 @@ def fetch_exam(exam_id):
     """
     force_refresh = request.args.get("force_refresh", "false").lower() == "true"
 
-    if current_user.role != "admin" and force_refresh:
+    if not current_user.can_view_all_data and force_refresh:
         return jsonify({"success": False, "message": "权限不足，无法强制刷新"}), 403
 
     task = create_task(
@@ -180,25 +193,38 @@ def fetch_exam(exam_id):
 
 @exam_bp.route("/<string:exam_id>/score", methods=["GET"])
 @login_required
-@zhixue_account_required
 def get_user_exam_score(exam_id):
     """
-    获取当前用户在指定考试中的分数和详细信息
+    获取指定考试中的分数和详细信息
+    对于普通用户：只能查看自己绑定账号的成绩
+    对于管理员和数据查看者：可以通过 student_id 参数查看任意学生的成绩
     """
+    student_id = request.args.get("student_id", None)
+
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    stmt = select(UserExam).where(
-        (UserExam.zhixue_id == current_user.zhixue_account_id) &
-        (UserExam.exam_id == exam.id)
-    )
-    if not db.session.scalar(stmt):
-        return jsonify({"success": False, "message": "无权访问该考试"}), 403
+    if not current_user.can_view_all_data:
+        if not current_user.zhixue:
+            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
+        if student_id is not None and student_id != current_user.zhixue_account_id:
+            return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
+        student_id = current_user.zhixue_account_id
 
-    stmt = select(Score).where(Score.exam_id == exam_id, Score.student_id ==
-                               current_user.zhixue_account_id).order_by(Score.sort)
+        stmt = select(UserExam).where(
+            (UserExam.zhixue_id == student_id) &
+            (UserExam.exam_id == exam_id)
+        )
+        if not db.session.scalar(stmt):
+            return jsonify({"success": False, "message": "无权访问该考试"}), 403
+    else:
+        if student_id is None and not current_user.zhixue:
+            return jsonify({"success": False, "message": "请先绑定智学网账号或指定学生 ID"}), 401
+        student_id = current_user.zhixue_account_id if not student_id else student_id
+
+    stmt = select(Score).where((Score.exam_id == exam_id) & (Score.student_id == student_id)).order_by(Score.sort)
     raw_scores = db.session.scalars(stmt).all()
     scores = []
     for raw_score in raw_scores:
@@ -219,17 +245,18 @@ def get_user_exam_score(exam_id):
         "school_id": exam.school_id,
         "is_saved": exam.is_saved,
         "created_at": exam.created_at,
+        "student_id": student_id,
         "scores": scores
     }), 200
 
 
 @exam_bp.route("/<string:exam_id>/scoresheet", methods=["GET"])
 @login_required
-@admin_or_special_user_required
+@data_access_required
 def generate_scoresheet(exam_id):
     """
     生成指定考试的成绩单 Excel 文件
-    仅管理员可使用
+    管理员和数据查看者可使用
     """
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
@@ -324,25 +351,34 @@ def generate_scoresheet(exam_id):
 def generate_answersheet(exam_id, subject_id):
     """
     生成指定用户指定考试中指定科目的答题卡
+    普通用户：只能查看自己的答题卡
+    管理员和数据查看者：可以查看任意学生的答题卡
     """
     student_id = request.args.get("student_id", None)
-    if student_id is not None:
-        if student_id != current_user.zhixue_account_id and current_user.role != "admin":
-            return jsonify({"success": False, "message": "Access denied"}), 403
-    else:
+
+    if not current_user.can_view_all_data:
+        if not current_user.zhixue:
+            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
+        if student_id is not None and student_id != current_user.zhixue_account_id:
+            return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
         student_id = current_user.zhixue_account_id
+    else:
+        if student_id is None and not current_user.zhixue:
+            return jsonify({"success": False, "message": "请先绑定智学网账号或指定学生 ID"}), 401
+        student_id = current_user.zhixue_account_id if not student_id else student_id
 
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    stmt = select(UserExam).where(
-        (UserExam.zhixue_id == current_user.zhixue_account_id) &
-        (UserExam.exam_id == exam.id)
-    )
-    if not db.session.scalar(stmt) and current_user.role != "admin":
-        return jsonify({"success": False, "message": "无权访问该考试"}), 403
+    if not current_user.can_view_all_data:
+        stmt = select(UserExam).where(
+            (UserExam.zhixue_id == student_id) &
+            (UserExam.exam_id == exam_id)
+        )
+        if not db.session.scalar(stmt):
+            return jsonify({"success": False, "message": "无权访问该考试"}), 403
 
     cache_dir = Path(__file__).parents[4] / "cache"
     os.makedirs(cache_dir, exist_ok=True)

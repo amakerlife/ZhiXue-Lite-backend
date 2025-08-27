@@ -49,7 +49,7 @@ def list_users():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(User)
+    stmt = select(User).order_by(User.id.asc())
     if query:
         stmt = stmt.where(User.username.contains(query))
 

@@ -20,6 +20,13 @@ class TaskStatus(Enum):
     CANCELLED = "cancelled"    # 已取消
 
 
+class UserRole(Enum):
+    """用户角色"""
+    USER = "user"                # 普通用户
+    DATA_VIEWER = "data_viewer"  # 数据查看者
+    ADMIN = "admin"              # 管理员
+
+
 class School(BaseDBClass):
     """智学网学校模型"""
     __tablename__ = "schools"
@@ -252,3 +259,18 @@ class User(UserMixin, BaseDBClass):
             "zhixue_realname": self.zhixue.realname if self.zhixue else None,
             "zhixue_school": self.zhixue.school.name if self.zhixue else None,
         }
+
+    @property
+    def is_admin(self) -> bool:
+        """检查用户是否为管理员"""
+        return self.role == UserRole.ADMIN.value
+
+    @property
+    def is_data_viewer(self) -> bool:
+        """检查用户是否为数据查看者"""
+        return self.role == UserRole.DATA_VIEWER.value
+
+    @property
+    def can_view_all_data(self) -> bool:
+        """检查用户是否可以查看所有数据"""
+        return self.role in [UserRole.ADMIN.value, UserRole.DATA_VIEWER.value]
