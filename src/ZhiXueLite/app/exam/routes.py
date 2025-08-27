@@ -131,6 +131,13 @@ def get_exam_info(exam_id):
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
+    stmt = select(UserExam).where(
+        (UserExam.zhixue_id == current_user.zhixue_account_id) &
+        (UserExam.exam_id == exam.id)
+    )
+    if not db.session.scalar(stmt):
+        return jsonify({"success": False, "message": "无权访问该考试"}), 403
+
     return jsonify({
         "success": True,
         "exam": {
@@ -176,12 +183,19 @@ def fetch_exam(exam_id):
 @zhixue_account_required
 def get_user_exam_score(exam_id):
     """
-    获取用户在指定考试中的分数和详细信息
+    获取当前用户在指定考试中的分数和详细信息
     """
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
+
+    stmt = select(UserExam).where(
+        (UserExam.zhixue_id == current_user.zhixue_account_id) &
+        (UserExam.exam_id == exam.id)
+    )
+    if not db.session.scalar(stmt):
+        return jsonify({"success": False, "message": "无权访问该考试"}), 403
 
     stmt = select(Score).where(Score.exam_id == exam_id, Score.student_id ==
                                current_user.zhixue_account_id).order_by(Score.sort)
@@ -220,7 +234,7 @@ def generate_scoresheet(exam_id):
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
-        return jsonify({"success": False, "message": "考试不存在"}), 404
+        return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
     if not exam.is_saved:
         return jsonify({"success": False, "message": "考试数据尚未保存，请先拉取考试详情"}), 400
@@ -309,14 +323,26 @@ def generate_scoresheet(exam_id):
 @login_required
 def generate_answersheet(exam_id, subject_id):
     """
-    生成指定考试中指定科目的答题卡
+    生成指定用户指定考试中指定科目的答题卡
     """
     student_id = request.args.get("student_id", None)
     if student_id is not None:
-        if student_id != current_user.zhixue_account_id:
+        if student_id != current_user.zhixue_account_id and current_user.role != "admin":
             return jsonify({"success": False, "message": "Access denied"}), 403
     else:
         student_id = current_user.zhixue_account_id
+
+    stmt = select(Exam).where(Exam.id == exam_id)
+    exam = db.session.scalar(stmt)
+    if not exam:
+        return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
+
+    stmt = select(UserExam).where(
+        (UserExam.zhixue_id == current_user.zhixue_account_id) &
+        (UserExam.exam_id == exam.id)
+    )
+    if not db.session.scalar(stmt) and current_user.role != "admin":
+        return jsonify({"success": False, "message": "无权访问该考试"}), 403
 
     cache_dir = Path(__file__).parents[4] / "cache"
     os.makedirs(cache_dir, exist_ok=True)
