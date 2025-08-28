@@ -342,7 +342,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             raise ZhixueError("Failed to draw answersheet")
         return image
 
-    def get_stuid_by_stuname(self, examid: str, stuname: str) -> str:  # XXX: 适配无法获取的情况
+    def get_student_id_by_name(self, examid: str, stuname: str) -> list[str]:
         """
         根据学生姓名和 examid 获取学生 ID
 
@@ -350,7 +350,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             examid: 考试 ID
             stuname: 学生姓名
         Returns:
-            str: 学生 ID
+            list[str]: 学生 ID 列表
         """
         self.update_login_status()
         r = self.get_session().post(
@@ -363,8 +363,10 @@ class ExtendedTeacherAccount(TeacherAccount):
         if "<html" in r.text:
             logger.warning("Failed to get student id")
             raise ZhixueError("Failed to get student id")
-        # TODO: 支持多个学生，进行选择
-        data = r.json()["result"]["studentRank"][0]["userId"]
+        students = r.json()["result"]["studentRank"]
+        data = []
+        for student in students:
+            data.append(student["userId"])
         return data
 
 

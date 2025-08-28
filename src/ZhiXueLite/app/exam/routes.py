@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import cast
 from flask import Blueprint, request, jsonify, send_file
 from flask_login import login_required, current_user
 from functools import wraps
@@ -197,9 +196,13 @@ def get_user_exam_score(exam_id):
     """
     获取指定考试中的分数和详细信息
     对于普通用户：只能查看自己绑定账号的成绩
-    对于管理员和数据查看者：可以通过 student_id 参数查看任意学生的成绩
+    对于管理员和数据查看者：可以通过 student_id 或 student_name 参数查看任意学生的成绩
     """
     student_id = request.args.get("student_id", None)
+    student_name = request.args.get("student_name", None)
+
+    if student_id is not None and student_name is not None:
+        return jsonify({"success": False, "message": "不可同时指定学生 ID 和姓名"}), 400
 
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
@@ -211,6 +214,8 @@ def get_user_exam_score(exam_id):
             return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
         if student_id is not None and student_id != current_user.zhixue_account_id:
             return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
+        if student_name is not None:
+            return jsonify({"success": False, "message": "无权使用学生姓名查询成绩"}), 403
         student_id = current_user.zhixue_account_id
 
         stmt = select(UserExam).where(
@@ -223,6 +228,19 @@ def get_user_exam_score(exam_id):
         if student_id is None and not current_user.zhixue:
             return jsonify({"success": False, "message": "请先绑定智学网账号或指定学生 ID"}), 401
         student_id = current_user.zhixue_account_id if not student_id else student_id
+
+    if student_name is not None:
+        try:
+            teacher_account = get_teacher(exam_id)
+            teacher = login_teacher_session(teacher_account.cookie)
+            student_ids = teacher.get_student_id_by_name(exam_id, student_name)
+            if len(student_ids) == 0:
+                return jsonify({"success": False, "message": "未找到该学生"}), 404
+            elif len(student_ids) > 1:
+                return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(student_ids)}"}), 400
+            student_id = student_ids[0]
+        except:
+            return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
 
     stmt = select(Score).where((Score.exam_id == exam_id) & (Score.student_id == student_id)).order_by(Score.sort)
     raw_scores = db.session.scalars(stmt).all()
@@ -355,12 +373,15 @@ def generate_answersheet(exam_id, subject_id):
     管理员和数据查看者：可以查看任意学生的答题卡
     """
     student_id = request.args.get("student_id", None)
+    student_name = request.args.get("student_name", None)
 
     if not current_user.can_view_all_data:
         if not current_user.zhixue:
             return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
         if student_id is not None and student_id != current_user.zhixue_account_id:
             return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
+        if student_name is not None:
+            return jsonify({"success": False, "message": "无权使用学生姓名查询成绩"}), 403
         student_id = current_user.zhixue_account_id
     else:
         if student_id is None and not current_user.zhixue:
@@ -371,6 +392,19 @@ def generate_answersheet(exam_id, subject_id):
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
+
+    if student_name is not None:
+        try:
+            teacher_account = get_teacher(exam_id)
+            teacher = login_teacher_session(teacher_account.cookie)
+            student_ids = teacher.get_student_id_by_name(exam_id, student_name)
+            if len(student_ids) == 0:
+                return jsonify({"success": False, "message": "未找到该学生"}), 404
+            elif len(student_ids) > 1:
+                return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(student_ids)}"}), 400
+            student_id = student_ids[0]
+        except:
+            return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
 
     if not current_user.can_view_all_data:
         stmt = select(UserExam).where(
