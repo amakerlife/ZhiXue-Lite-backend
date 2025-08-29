@@ -322,7 +322,26 @@ def generate_scoresheet(exam_id):
 
     subject_names = sorted(subject_info.keys(), key=lambda x: subject_info[x])
 
-    # 排序学生数据：按照每个科目的年级排名、班级排名降序，最后按姓名升序
+    def parse_rank_value(rank_value):
+        """
+        解析排名值，提取其中的数字部分
+        """
+        if rank_value is None or rank_value == "":
+            return float('inf')
+
+        if isinstance(rank_value, (int, float)):
+            return float(rank_value)
+
+        # 如果是字符串，尝试提取数字
+        if isinstance(rank_value, str):
+            import re
+            match = re.match(r'^(\d+)', rank_value.strip())
+            if match:
+                return float(match.group(1))
+
+        return float('inf')
+
+    # 排序学生数据：按照每个科目的年级排名、班级排名升序，最后按姓名升序
     def get_sort_key(item):
         student_id, student_info = item
         sort_key = []
@@ -332,13 +351,12 @@ def generate_scoresheet(exam_id):
             school_rank = subject_data.get("school_rank")
             class_rank = subject_data.get("class_rank")
 
-            if school_rank is None or school_rank == "":
-                school_rank = float('inf')
-            if class_rank is None or class_rank == "":
-                class_rank = float('inf')
+            # 解析排名值为数字
+            school_rank_num = parse_rank_value(school_rank)
+            class_rank_num = parse_rank_value(class_rank)
 
             # 升序排序
-            sort_key.extend([school_rank, class_rank])
+            sort_key.extend([school_rank_num, class_rank_num])
 
         sort_key.append(student_info["name"])
 
