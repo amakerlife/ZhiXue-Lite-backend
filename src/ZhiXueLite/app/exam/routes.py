@@ -322,6 +322,30 @@ def generate_scoresheet(exam_id):
 
     subject_names = sorted(subject_info.keys(), key=lambda x: subject_info[x])
 
+    # 排序学生数据：按照每个科目的年级排名、班级排名降序，最后按姓名升序
+    def get_sort_key(item):
+        student_id, student_info = item
+        sort_key = []
+
+        for subject_name in subject_names:
+            subject_data = student_info["subjects"].get(subject_name, {})
+            school_rank = subject_data.get("school_rank")
+            class_rank = subject_data.get("class_rank")
+
+            if school_rank is None or school_rank == "":
+                school_rank = float('inf')
+            if class_rank is None or class_rank == "":
+                class_rank = float('inf')
+
+            # 升序排序
+            sort_key.extend([school_rank, class_rank])
+
+        sort_key.append(student_info["name"])
+
+        return sort_key
+
+    student_list = sorted(student_dict.items(), key=get_sort_key)
+
     titles = ["姓名", "标签", "班级"]
     for subject_name in subject_names:
         titles.extend([
@@ -331,7 +355,7 @@ def generate_scoresheet(exam_id):
         ])
     ws.append(titles)
 
-    for student_id, student_info in student_dict.items():
+    for student_id, student_info in student_list:
         row = [
             student_info["name"],
             student_info["label"],
@@ -340,10 +364,14 @@ def generate_scoresheet(exam_id):
 
         for subject_name in subject_names:
             subject_data = student_info["subjects"].get(subject_name, {})
+            score = subject_data.get("score")
+            class_rank = subject_data.get("class_rank")
+            school_rank = subject_data.get("school_rank")
+
             row.extend([
-                subject_data.get("score", ""),
-                subject_data.get("class_rank", ""),
-                subject_data.get("school_rank", "")
+                score if score is not None else None,
+                class_rank if class_rank is not None else None,
+                school_rank if school_rank is not None else None
             ])
 
         ws.append(row)
