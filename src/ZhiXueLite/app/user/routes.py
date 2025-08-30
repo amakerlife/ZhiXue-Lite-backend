@@ -135,6 +135,38 @@ def get_current_user():
     return jsonify({"success": True, "user": current_user.to_dict()}), 200
 
 
+@user_bp.route("/me", methods=["PUT"])
+@login_required
+def update_current_user():
+    """更新当前用户信息"""
+    data = request.get_json()
+
+    # 只允许更新特定字段
+    allowed_fields = ["email"]
+
+    for field in allowed_fields:
+        if field in data:
+            if field == "email":
+                existing_user = db.session.scalar(select(User).where(User.email == data[field], User.id != current_user.id))
+                if existing_user:
+                    return jsonify({"success": False, "message": "邮箱已被其他用户使用"}), 400
+            setattr(current_user, field, data[field])
+
+    # 单独处理密码
+    if "password" in data:
+        current_password = data.get("currentPassword")
+        if not current_password:
+            return jsonify({"success": False, "message": "请提供当前密码"}), 400
+
+        if not current_user.check_password(current_password):
+            return jsonify({"success": False, "message": "当前密码错误"}), 400
+
+        current_user.set_password(data["password"])
+
+    db.session.commit()
+    return jsonify({"success": True, "message": "用户信息已更新", "user": current_user.to_dict()}), 200
+
+
 @user_bp.route("/show/<int:user_id>", methods=["GET"])
 @login_required
 def get_user(user_id):
@@ -144,33 +176,6 @@ def get_user(user_id):
 
     user = db.get_or_404(User, user_id)
     return jsonify({"success": True, "user": user.to_dict()}), 200
-
-
-@user_bp.route("/update/<int:user_id>", methods=["PUT"])
-@login_required
-def update_user(user_id):
-    """更新用户信息"""
-    if current_user.id != user_id and current_user.role != "admin":
-        return jsonify({"success": False, "message": "您无权访问该页面"}), 403
-
-    user = db.get_or_404(User, user_id)
-    data = request.get_json()
-
-    # 只允许更新特定字段
-    allowed_fields = ["email"]
-    if current_user.role == "admin":
-        allowed_fields.extend(["role", "is_active"])
-
-    for field in allowed_fields:
-        if field in data:
-            setattr(user, field, data[field])
-
-    # 单独处理密码
-    if "password" in data:
-        user.set_password(data["password"])
-
-    db.session.commit()
-    return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200
 
 
 def already_bound_exempt():

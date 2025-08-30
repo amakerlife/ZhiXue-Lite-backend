@@ -156,6 +156,29 @@ def unbind_user(zhixue_username, username):
     return jsonify({"success": True, "message": "已解绑该智学网账号"}), 200
 
 
+@admin_bp.route("/user/<int:user_id>", methods=["PUT"])
+def update_user(user_id):
+    """管理员更新用户信息"""
+    user = db.get_or_404(User, user_id)
+    data = request.get_json()
+
+    allowed_fields = ["email", "role", "is_active"]
+
+    for field in allowed_fields:
+        if field in data:
+            if field == "email":
+                existing_user = db.session.scalar(select(User).where(User.email == data[field], User.id != user_id))
+                if existing_user:
+                    return jsonify({"success": False, "message": "邮箱已被其他用户使用"}), 400
+            setattr(user, field, data[field])
+
+    if "password" in data:
+        user.set_password(data["password"])
+
+    db.session.commit()
+    return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200
+
+
 # TODO: DELETE /admin/cache/exams; DELETE /admin/cache/exams/{exam_id} etc
 @admin_bp.route("/cache", methods=["DELETE"])
 def clear_cache():
