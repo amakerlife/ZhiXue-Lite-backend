@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
@@ -95,6 +96,15 @@ def create_app():
     app.register_blueprint(teacher_bp, url_prefix="/teacher")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(task_bp, url_prefix="/task")
+
+    @app.route("/ping", methods=["GET"])
+    def ping():
+        """健康检查端点"""
+        return jsonify({
+            "success": True,
+            "message": "pong",
+            "timestamp": datetime.utcnow().isoformat()
+        }), 200
 
     @app.cli.command("init-db")
     def init_db_command():
