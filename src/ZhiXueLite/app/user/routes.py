@@ -51,11 +51,16 @@ def signup():
     if db.session.get(User, 1) is None:
         role = "admin"
 
+    permissions = "10110"
+    if role == "admin":
+        permissions = "33333"
+
     # 创建新用户
     user = User(
         username=data["username"],
         email=data["email"],
         role=role,
+        permissions=permissions,
         created_at=datetime.utcnow(),
         registration_ip=get_remote_address(),
         last_login=datetime.utcnow(),

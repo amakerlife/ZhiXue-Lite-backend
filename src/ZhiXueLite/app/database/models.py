@@ -20,11 +20,21 @@ class TaskStatus(Enum):
     CANCELLED = "cancelled"    # 已取消
 
 
-class UserRole(Enum):
-    """用户角色"""
-    USER = "user"                # 普通用户
-    DATA_VIEWER = "data_viewer"  # 数据查看者
-    ADMIN = "admin"              # 管理员
+class PermissionLevel(Enum):
+    """权限级别"""
+    DENIED = 0      # 禁止
+    SELF = 1        # 个人: 只能访问自己的数据
+    SCHOOL = 2      # 校内: 可访问同校数据
+    GLOBAL = 3      # 全局: 可访问所有数据
+
+
+class PermissionType(Enum):
+    """权限类型及位置"""
+    FETCH_DATA = 0          # 拉取数据（列表、详情）
+    REFETCH_EXAM_DATA = 1   # 重新拉取考试详情数据
+    VIEW_EXAM_LIST = 2      # 查看考试列表
+    VIEW_EXAM_DATA = 3      # 查看考试详情
+    EXPORT_SCORE_SHEET = 4  # 导出成绩单（无个人权限）
 
 
 class School(BaseDBClass):
@@ -213,6 +223,7 @@ class User(UserMixin, BaseDBClass):
     email: Mapped[Optional[str]] = mapped_column(String(120), unique=True, index=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(200))
     role: Mapped[Optional[str]] = mapped_column(String(20))
+    permissions: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -237,6 +248,7 @@ class User(UserMixin, BaseDBClass):
             "username": self.username,
             "email": self.email,
             "role": self.role,
+            "permissions": self.permissions,
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "zhixue_username": self.zhixue.username if self.zhixue else None,
@@ -250,6 +262,7 @@ class User(UserMixin, BaseDBClass):
             "username": self.username,
             "email": self.email,
             "role": self.role,
+            "permissions": self.permissions,
             "is_active": self.is_active,
             "created_at": self.created_at.isoformat(),
             "last_login": self.last_login.isoformat() if self.last_login else None,
@@ -263,14 +276,22 @@ class User(UserMixin, BaseDBClass):
     @property
     def is_admin(self) -> bool:
         """检查用户是否为管理员"""
-        return self.role == UserRole.ADMIN.value
+        return self.role == "admin"
 
-    @property
-    def is_data_viewer(self) -> bool:
-        """检查用户是否为数据查看者"""
-        return self.role == UserRole.DATA_VIEWER.value
+    def has_permission(self, permission_type: PermissionType, required_level: PermissionLevel) -> bool:
+        """检查用户是否有指定级别的权限"""
+        if self.is_admin:
+            return True
 
-    @property
-    def can_view_all_data(self) -> bool:
-        """检查用户是否可以查看所有数据"""
-        return self.role in [UserRole.ADMIN.value, UserRole.DATA_VIEWER.value]
+        if not self.permissions or len(self.permissions) <= permission_type.value:
+            return False
+
+        user_level = int(self.permissions[permission_type.value])
+
+        if user_level < required_level.value:
+            return False
+
+        if self.zhixue is None and required_level != PermissionLevel.DENIED and required_level != PermissionLevel.GLOBAL:
+            return False
+
+        return True

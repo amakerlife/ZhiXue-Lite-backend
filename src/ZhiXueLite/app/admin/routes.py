@@ -162,7 +162,7 @@ def update_user(user_id):
     user = db.get_or_404(User, user_id)
     data = request.get_json()
 
-    allowed_fields = ["email", "role", "is_active"]
+    allowed_fields = ["email", "is_active", "permissions"]
 
     for field in allowed_fields:
         if field in data:
@@ -174,6 +174,16 @@ def update_user(user_id):
 
     if "password" in data:
         user.set_password(data["password"])
+
+    if "role" in data:
+        role = data["role"]
+        if role not in ["admin", "user"]:
+            return jsonify({"success": False, "message": "无效的角色"}), 400
+        permissions = "10110"
+        if role == "admin":
+            permissions = "33333"
+        user.permissions = permissions
+        user.role = role
 
     db.session.commit()
     return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200

@@ -12,8 +12,9 @@ from task_worker.repository import update_task_progress
 from loguru import logger
 
 
-def get_teacher(session: Session, exam_id: str):
-    school_id = session.scalar(select(Exam.school_id).where(Exam.id == exam_id))
+def get_teacher(session: Session, exam_id: str, school_id: str | None = None) -> ZhiXueTeacherAccount:
+    if not school_id:
+        school_id = session.scalar(select(Exam.school_id).where(Exam.id == exam_id))
     if not school_id:
         raise FailedToGetTeacherAccountError(f"teacher not found for exam_id: {exam_id}")
 
@@ -105,6 +106,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
     """拉取考试分数详情"""
     exam_id = parameters.get("exam_id", None)
     force_refresh = parameters.get("force_refresh", False)
+    school_id = parameters.get("school_id", None)
     if exam_id is None:
         raise ValueError("Missing exam_id parameter")
 
@@ -117,7 +119,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         return {"success": True}
 
     try:
-        teacher_account = get_teacher(session, exam_id)
+        teacher_account = get_teacher(session, exam_id, school_id)
         teacher = login_teacher_session(teacher_account.cookie)
         if teacher_account.cookie != teacher.get_cookie():
             teacher_account.cookie = teacher.get_cookie()
