@@ -185,6 +185,10 @@ def update_user(user_id):
         user.permissions = permissions
         user.role = role
 
+    if "permissions" in data:
+        if data["permissions"][4] == "1":
+            return jsonify({"success": False, "message": "不可为导出成绩单赋个人权限"}), 400
+
     db.session.commit()
     return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200
 
