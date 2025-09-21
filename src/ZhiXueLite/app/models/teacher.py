@@ -5,6 +5,7 @@ from typing import Tuple
 
 from loguru import logger
 from zhixuewang.teacher import TeacherAccount
+from zhixuewang.models import Exam
 
 from app.utils.answersheet import draw_answersheet
 from app.models.exceptions import ZhixueError
@@ -368,6 +369,30 @@ class ExtendedTeacherAccount(TeacherAccount):
         for student in students:
             data.append(student["userId"])
         return data
+
+    def get_exam_detail(self, examid: str) -> Exam:
+        """
+        获取某个考试的简单详细情况
+
+        Args:
+            exam_id (str): 为需要查询考试的id
+        Return:
+            Exam
+        """
+        self.update_login_status()
+        r = self.get_session().post(
+            "https://www.zhixue.com/api-classreport/class/examInfo/",
+            data={
+                "examId": examid,
+            }
+        )
+        data = r.json()["result"][0]
+        exam = Exam(
+            id=examid,
+            name=data["examName"],
+            create_time=data["examTime"],
+        )
+        return exam
 
 
 def login_teacher(username: str, password: str, method: str = "changyan") -> ExtendedTeacherAccount:

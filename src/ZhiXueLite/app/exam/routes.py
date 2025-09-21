@@ -232,7 +232,7 @@ def fetch_exam(exam_id):
         task_type="fetch_exam_details",
         user_id=current_user.id,
         parameters={"exam_id": exam_id, "force_refresh": force_refresh, "school_id": school_id},
-        timeout=180
+        timeout=300
     )
     return jsonify({
         "success": True,

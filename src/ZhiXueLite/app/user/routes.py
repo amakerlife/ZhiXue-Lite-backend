@@ -152,7 +152,8 @@ def update_current_user():
     for field in allowed_fields:
         if field in data:
             if field == "email":
-                existing_user = db.session.scalar(select(User).where(User.email == data[field], User.id != current_user.id))
+                existing_user = db.session.scalar(select(User).where(
+                    User.email == data[field], User.id != current_user.id))
                 if existing_user:
                     return jsonify({"success": False, "message": "邮箱已被其他用户使用"}), 400
             setattr(current_user, field, data[field])

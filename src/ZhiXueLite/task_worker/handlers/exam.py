@@ -197,5 +197,5 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         return {"success": True}
 
     except Exception as e:
-        logger.error(f"Fetch exam details handler failed: {str(e)}")
+        logger.exception("Fetch exam details handler failed")
         raise
