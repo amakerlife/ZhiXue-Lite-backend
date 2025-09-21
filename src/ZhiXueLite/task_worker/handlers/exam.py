@@ -112,9 +112,9 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
 
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = session.scalar(stmt)
-    if not exam:
+    if not exam and not school_id:
         raise ValueError(f"Exam not found: {exam_id}")
-    if exam.is_saved and not force_refresh:
+    if exam and exam.is_saved and not force_refresh:
         update_task_progress(session, task_id, 100, "考试已被保存，无需重复拉取")
         return {"success": True}
 
@@ -123,6 +123,17 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         teacher = login_teacher_session(teacher_account.cookie)
         if teacher_account.cookie != teacher.get_cookie():
             teacher_account.cookie = teacher.get_cookie()
+            session.flush()
+
+        if not exam:
+            exam_v = teacher.get_exam_detail(exam_id)
+            exam = Exam(
+                id=exam_id,
+                name=exam_v.name,
+                created_at=exam_v.create_time,
+                school_id=teacher_account.school_id
+            )
+            session.add(exam)
             session.flush()
 
         student_scores = teacher.get_exam_scores(exam_id)

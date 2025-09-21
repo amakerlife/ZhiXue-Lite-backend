@@ -206,7 +206,7 @@ def fetch_exam(exam_id):
     if not current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SCHOOL):
         school_id = ""
 
-    if school_id:
+    if school_id and not current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.GLOBAL):
         if current_user.zhixue is None or current_user.zhixue.school_id != school_id:
             return jsonify({"success": False, "message": "无权访问该考试数据"}), 403
 
