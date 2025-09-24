@@ -12,9 +12,11 @@ from task_worker.repository import update_task_progress
 from loguru import logger
 
 
-def get_teacher(session: Session, exam_id: str, school_id: str | None = None) -> ZhiXueTeacherAccount:
+def get_teacher(session: Session, exam_id: str, school_id: str | None = None, user: User | None = None) -> ZhiXueTeacherAccount:
     if not school_id:
         school_id = session.scalar(select(Exam.school_id).where(Exam.id == exam_id))
+    if user and not school_id and user.zhixue:
+        school_id = user.zhixue.school_id
     if not school_id:
         raise FailedToGetTeacherAccountError(f"teacher not found for exam_id: {exam_id}")
 
@@ -119,7 +121,9 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         return {"success": True}
 
     try:
-        teacher_account = get_teacher(session, exam_id, school_id)
+        stmt = select(User).where(User.id == user_id)
+        user = session.scalar(stmt)
+        teacher_account = get_teacher(session, exam_id, school_id, user)
         teacher = login_teacher_session(teacher_account.cookie)
         if teacher_account.cookie != teacher.get_cookie():
             teacher_account.cookie = teacher.get_cookie()

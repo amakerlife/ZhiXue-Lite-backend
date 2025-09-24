@@ -7,7 +7,7 @@ import time
 from openpyxl import Workbook
 from sqlalchemy import select, desc
 from app.database import db
-from app.database.models import Exam, PermissionLevel, Score, UserExam, Student, ZhiXueTeacherAccount, PermissionType
+from app.database.models import Exam, PermissionLevel, Score, User, UserExam, Student, ZhiXueTeacherAccount, PermissionType
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
 from app.task.repository import create_task
@@ -50,8 +50,11 @@ def permission_required(permission_type: PermissionType, scope: str):
     return decorator
 
 
-def get_teacher(exam_id: str):
-    school_id = db.session.scalar(select(Exam.school_id).where(Exam.id == exam_id))
+def get_teacher(exam_id: str, school_id: str | None = None, user: User | None = None) -> ZhiXueTeacherAccount:
+    if not school_id:
+        school_id = db.session.scalar(select(Exam.school_id).where(Exam.id == exam_id))
+    if user and not school_id and user.zhixue:
+        school_id = user.zhixue.school_id
     if not school_id:
         raise FailedToGetTeacherAccountError(f"teacher not found for exam_id: {exam_id}")
 
@@ -198,16 +201,24 @@ def fetch_exam(exam_id):
     拉取指定考试的详细信息
     可选参数
     - force_refresh: 是否强制刷新，默认为 false
-    - school_id: 考试所属学校 ID，默认为空
+    - school_id: 考试所属学校 ID，默认为空（若考试已保存则自动获取，否则为当前用户所在学校）
     """
     force_refresh = request.args.get("force_refresh", "false").lower() == "true"
     school_id = request.args.get("school_id", "", type=str)
 
     if not current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SCHOOL):
-        school_id = ""
+        if current_user.zhixue is None:
+            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
+        stmt = select(UserExam).where(
+            (UserExam.exam_id == exam_id) &
+            (UserExam.zhixue_id == current_user.zhixue_account_id)
+        )
+        if not db.session.scalar(stmt):
+            return jsonify({"success": False, "message": "无权拉取该考试数据"}), 403
+        school_id = current_user.zhixue.school_id
 
     if school_id and not current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.GLOBAL):
-        if current_user.zhixue is None or current_user.zhixue.school_id != school_id:
+        if current_user.zhixue is None or (school_id and current_user.zhixue.school_id != school_id):
             return jsonify({"success": False, "message": "无权访问该考试数据"}), 403
 
     if force_refresh:
@@ -318,7 +329,7 @@ def get_user_exam_score(exam_id):
 
 @exam_bp.route("/<string:exam_id>/scoresheet", methods=["GET"])
 @login_required
-@permission_required(PermissionType.EXPORT_SCORE_SHEET, "school")
+@permission_required(PermissionType.EXPORT_SCORE_SHEET, "user")
 def generate_scoresheet(exam_id):
     """
     生成指定考试的成绩单 Excel 文件
@@ -336,6 +347,15 @@ def generate_scoresheet(exam_id):
     elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SCHOOL):
         if current_user.zhixue is None or exam.school_id != current_user.zhixue.school_id:
             return jsonify({"success": False, "message": "无权访问该考试"}), 403
+    elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SELF):
+        if current_user.zhixue is None:
+            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
+        stmt = select(UserExam).where(
+            (UserExam.exam_id == exam_id) &
+            (UserExam.zhixue_id == current_user.zhixue_account_id)
+        )
+        if not db.session.scalar(stmt):
+            return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
 
     stmt = select(Score).where(Score.exam_id == exam_id).join(Student)
     scores_data = db.session.scalars(stmt).all()

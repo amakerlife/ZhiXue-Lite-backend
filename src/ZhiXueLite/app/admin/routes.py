@@ -170,6 +170,9 @@ def update_user(user_id):
                 existing_user = db.session.scalar(select(User).where(User.email == data[field], User.id != user_id))
                 if existing_user:
                     return jsonify({"success": False, "message": "邮箱已被其他用户使用"}), 400
+            if field == "permissions":
+                if not isinstance(data[field], str) or len(data[field]) != 5 or not all(c in "0123" for c in data[field]):
+                    return jsonify({"success": False, "message": "权限格式无效"}), 400
             setattr(user, field, data[field])
 
     if "password" in data:
@@ -184,10 +187,6 @@ def update_user(user_id):
             permissions = "33333"
         user.permissions = permissions
         user.role = role
-
-    if "permissions" in data:
-        if data["permissions"][4] == "1":
-            return jsonify({"success": False, "message": "不可为导出成绩单赋个人权限"}), 400
 
     db.session.commit()
     return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200
