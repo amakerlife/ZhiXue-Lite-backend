@@ -86,11 +86,15 @@ def get_exam_list():
     - per_page: 每页数量，默认为 10
     - query: 搜索关键字
     - scope: 范围，school（校内）/self（个人）/all（全部），默认为 self
+    - start_time: 开始日期，时间戳
+    - end_time: 结束日期，时间戳
     """
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
     scope = request.args.get("scope", "self", type=str)
+    start_time = request.args.get("start_time", 0, type=float)
+    end_time = request.args.get("end_time", 0, type=float)
 
     if not has_permission(PermissionType.VIEW_EXAM_LIST, scope):
         return jsonify({"success": False, "message": "无权访问该考试数据"}), 403
@@ -105,10 +109,15 @@ def get_exam_list():
     elif scope == "all":
         stmt = select(Exam)
     else:
-        return jsonify({"success": False, "message": "Internal Server Error"}), 500
+        return jsonify({"success": False, "message": "参数不合法"}), 400
 
     if query:
         stmt = stmt.where(Exam.name.contains(query))
+
+    if start_time > 0 and end_time > 0 and end_time >= start_time:
+        stmt = stmt.where((Exam.created_at >= start_time) & (Exam.created_at <= end_time))
+    else:
+        return jsonify({"success": False, "message": "参数不合法"}), 400
 
     exams = db.session.scalars(stmt.order_by(desc(Exam.created_at))).all()
 
@@ -131,24 +140,48 @@ def get_exam_list():
 
 @exam_bp.route("/list/fetch", methods=["GET", "POST"])
 @login_required
-@zhixue_account_required
 @permission_required(PermissionType.FETCH_DATA, "self")
 @limiter.limit("3 per 20 minutes", key_func=get_user_limit)
 @limiter.limit("10/day", key_func=get_user_limit)
 def fetch_exam_list():
     """
-    从源服务器拉取当前学生的考试列表
+    从源服务器拉取考试列表
     """
-    task = create_task(
-        task_type="fetch_exam_list",
-        user_id=current_user.id,
-        timeout=180
-    )
-    return jsonify({
-        "success": True,
-        "task_id": task.uuid,
-        "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
-    }), 202
+    school_id = request.args.get("school_id", "", type=str)
+    if school_id == "":
+        if current_user.zhixue is None:
+            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
+        task = create_task(
+            task_type="fetch_student_exam_list",
+            user_id=current_user.id,
+            timeout=180
+        )
+        return jsonify({
+            "success": True,
+            "task_id": task.uuid,
+            "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
+        }), 202
+
+    else:
+        if current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.GLOBAL):
+            pass
+        elif current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SCHOOL):
+            if current_user.zhixue is None or current_user.zhixue.school_id != school_id:
+                return jsonify({"success": False, "message": "无权访问该考试数据"}), 403
+        else:
+            return jsonify({"success": False, "message": "Access Denied"}), 403
+
+        task = create_task(
+            task_type="fetch_school_exam_list",
+            user_id=current_user.id,
+            parameters={"school_id": school_id},
+            timeout=300
+        )
+        return jsonify({
+            "success": True,
+            "task_id": task.uuid,
+            "message": "考试列表拉取任务已创建，请通过任务 ID 查询进度"
+        }), 202
 
 
 @exam_bp.route("/<string:exam_id>", methods=["GET"])

@@ -26,8 +26,8 @@ def get_teacher(session: Session, exam_id: str, school_id: str | None = None, us
     return teacher
 
 
-def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parameters: dict[str, Any]):
-    """拉取考试列表"""
+def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int, parameters: dict[str, Any]):
+    """拉取学生考试列表"""
     try:
         update_task_progress(session, task_id, 10, "正在获取用户信息...")
 
@@ -49,7 +49,6 @@ def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parame
 
         update_task_progress(session, task_id, 50, "正在处理考试数据...")
 
-        processed_exams = []
         total_exams = len(exams)
 
         for i, exam in enumerate(exams):
@@ -78,12 +77,6 @@ def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parame
                     exam_id=exam.id
                 )
                 session.add(new_user_exam)
-                processed_exams.append({
-                    "id": exam.id,
-                    "name": exam.name,
-                    "school_id": user.zhixue.school_id,
-                    "created_at": exam.create_time if isinstance(exam.create_time, (int, float)) else None
-                })
 
             if i % 20 == 0 or i == total_exams - 1:
                 progress = 50 + (i + 1) / total_exams * 49
@@ -100,7 +93,7 @@ def fetch_exam_list_handler(session: Session, task_id: int, user_id: int, parame
         return {"success": True}
 
     except Exception as e:
-        logger.error(f"Fetch exam list handler failed: {str(e)}")
+        logger.error(f"Fetch student exam list handler failed: {str(e)}")
         raise
 
 
@@ -121,6 +114,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         return {"success": True}
 
     try:
+        update_task_progress(session, task_id, 10, "正在获取可用账号...")
         stmt = select(User).where(User.id == user_id)
         user = session.scalar(stmt)
         teacher_account = get_teacher(session, exam_id, school_id, user)
@@ -140,6 +134,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
             session.add(exam)
             session.flush()
 
+        update_task_progress(session, task_id, 30, "正在拉取考试成绩...")
         student_scores = teacher.get_exam_scores(exam_id)
         total_students = len(student_scores)
 
@@ -202,4 +197,54 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
 
     except Exception as e:
         logger.exception("Fetch exam details handler failed")
+        raise
+
+
+def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int, parameters: dict[str, Any]):
+    """拉取学校考试列表"""
+    try:
+        school_id = parameters.get("school_id", None)
+        query_parameters = parameters.get("query_parameters", {})
+
+        update_task_progress(session, task_id, 10, "正在获取可用账号...")
+        teacher_account = get_teacher(session, "", school_id)
+        teacher = login_teacher_session(teacher_account.cookie)
+        if teacher_account.cookie != teacher.get_cookie():
+            teacher_account.cookie = teacher.get_cookie()
+            session.flush()
+
+        update_task_progress(session, task_id, 30, "正在拉取考试数据...")
+        exams = teacher.get_exam_list(query_parameters)
+
+        total_exams = len(exams)
+
+        for i, exam in enumerate(exams):
+            # 检查考试是否已存在
+            existing_exam = session.get(Exam, exam.id)
+            if not existing_exam:
+                new_exam = Exam(
+                    id=exam.id,
+                    name=exam.name,
+                    created_at=exam.create_time,
+                    school_id=school_id
+                )
+                session.add(new_exam)
+                session.flush()
+
+            if i % 20 == 0 or i == total_exams - 1:
+                progress = 50 + (i + 1) / total_exams * 49
+                update_task_progress(
+                    session,
+                    task_id,
+                    int(progress),
+                    f"已处理 {i + 1}/{total_exams} 个考试"
+                )
+
+        session.flush()
+
+        update_task_progress(session, task_id, 100, "任务完成")
+        return {"success": True}
+
+    except Exception as e:
+        logger.error(f"Fetch school exam list handler failed: {str(e)}")
         raise

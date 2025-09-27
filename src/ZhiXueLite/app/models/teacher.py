@@ -35,6 +35,61 @@ class ExtendedTeacherAccount(TeacherAccount):
             cookie_items.append(f"{name}={value}")
         return "; ".join(cookie_items)
 
+    def get_exam_list_selections(self) -> dict[str, str]:
+        """
+        获取考试列表选项
+
+        Returns:
+            dict: 考试列表选项
+        """
+        self.update_login_status()
+        r = self.get_session().post(
+            "https://www.zhixue.com/api-teacher/api/reportlist",
+            headers={"token": self.get_token()},
+        )
+        data = r.json()["result"]
+        selections = data["selection"]
+        selections["gradeList"] = json.loads(data["gradeList"])
+        return selections
+
+    def get_exam_list(self, params: dict[str, str | int] = {}) -> list[Exam]:
+        """
+        获取教师考试列表
+
+        Args:
+            params: 请求参数
+
+        Returns:
+            list: 教师考试列表
+        """
+        self.update_login_status()
+        exams = []
+        current_page = 1
+        pages = 1
+        params["pageIndex"] = current_page
+        while True:
+            if (current_page > pages):
+                break
+            r = self.get_session().post(
+                "https://www.zhixue.com/api-teacher/api/reportlist",
+                data=params,
+                headers={"token": self.get_token()},
+            )
+            for exam in r.json()["result"]["reportList"]:
+                exam_data = exam["data"]
+                exams.append(Exam(
+                    id=exam_data["examId"],
+                    name=exam_data["examName"],
+                    create_time=exam_data["examCreateDateTime"],
+                    grade_code=exam_data["gradeCode"],
+                    is_final=exam_data["isFinal"],
+                ))
+            pages = r.json()["result"]["paperInfo"]["totalPage"]
+            current_page += 1
+            params["pageIndex"] = current_page
+            sleep(0.5)
+        return exams
+
     def get_exam_subjects(self, examid: str) -> dict[
         str, dict[str, str]
     ]:

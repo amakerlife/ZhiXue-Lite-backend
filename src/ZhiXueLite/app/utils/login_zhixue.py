@@ -19,6 +19,7 @@ from app.models.exceptions import LoginCaptchaError
 captcha_api = Config.GEETEST_CAPTCHA_URL
 
 MAX_RETRIES = 5
+TIMEOUT = 10
 CHANGYAN_LOGIN_URL = "https://pass.changyan.com/login/checkLogin"
 CHANGYAN_AGREEMENT_URL = "https://pass.changyan.com/login/updateUserAgreementStatus"
 ZHIXUE_LOGIN_URL = "https://www.zhixue.com/edition/login?from=web_login"
@@ -56,7 +57,7 @@ def gen_captcha_data(session: requests.Session) -> dict:
     captcha_data = {}
     for attempt in range(MAX_RETRIES):
         try:
-            captcha_data = session.get(captcha_api, timeout=5).json()["data"]
+            captcha_data = session.get(captcha_api, timeout=TIMEOUT).json()["data"]
         except Exception as e:
             logger.warning(f"Failed to get captcha: {e}")
             if attempt == MAX_RETRIES - 1:
