@@ -86,8 +86,8 @@ def get_exam_list():
     - per_page: 每页数量，默认为 10
     - query: 搜索关键字
     - scope: 范围，school（校内）/self（个人）/all（全部），默认为 self
-    - start_time: 开始日期，时间戳
-    - end_time: 结束日期，时间戳
+    - start_time: 开始日期，时间戳，默认 0（不限制）
+    - end_time: 结束日期，时间戳，默认 0（不限制）
     """
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 10, type=int)
@@ -116,7 +116,7 @@ def get_exam_list():
 
     if start_time > 0 and end_time > 0 and end_time >= start_time:
         stmt = stmt.where((Exam.created_at >= start_time) & (Exam.created_at <= end_time))
-    else:
+    elif not (start_time == 0 and end_time == 0):
         return jsonify({"success": False, "message": "参数不合法"}), 400
 
     exams = db.session.scalars(stmt.order_by(desc(Exam.created_at))).all()
@@ -138,6 +138,39 @@ def get_exam_list():
     }), 200
 
 
+@exam_bp.route("/fetch-list-params", methods=["GET"])
+@login_required
+@permission_required(PermissionType.FETCH_DATA, "school")
+def get_fetch_params():
+    """
+    获取拉取教师考试列表所需的参数
+    """
+    school_id = request.args.get("school_id", "", type=str)
+    if school_id == "":
+        school_id = current_user.zhixue.school_id if current_user.zhixue else ""
+        if school_id == "":
+            return jsonify({"success": False, "message": "参数不合法"}), 400
+    else:
+        if current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.GLOBAL):
+            pass
+        elif current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SCHOOL):
+            if current_user.zhixue is None or current_user.zhixue.school_id != school_id:
+                return jsonify({"success": False, "message": "无权访问该考试数据"}), 403
+        else:
+            return jsonify({"success": False, "message": "Access Denied"}), 403
+
+    try:
+        teacher_account = get_teacher("", school_id=school_id)
+    except FailedToGetTeacherAccountError:
+        return jsonify({"success": False, "message": "该学校暂无可用教师账号"}), 404
+    teacher_account = login_teacher_session(teacher_account.cookie)
+    params = teacher_account.get_exam_list_selections()
+    return jsonify({
+        "success": True,
+        "params": params
+    }), 200
+
+
 @exam_bp.route("/list/fetch", methods=["GET", "POST"])
 @login_required
 @permission_required(PermissionType.FETCH_DATA, "self")
@@ -146,9 +179,16 @@ def get_exam_list():
 def fetch_exam_list():
     """
     从源服务器拉取考试列表
+    可选参数
+    - query_type: 查询类型，self/school_id，默认为 self
+    - school_id: 学校 ID，默认为空（当前用户自身考试列表）
+    可选请求体参数
+    - params: 拉取参数，格式见 /exam/fetch-list-params 接口返回值
     """
+    query_type = request.args.get("query_type", "self", type=str)
     school_id = request.args.get("school_id", "", type=str)
-    if school_id == "":
+    params = request.get_json().get("params", {})
+    if query_type == "self":
         if current_user.zhixue is None:
             return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
         task = create_task(
@@ -163,6 +203,8 @@ def fetch_exam_list():
         }), 202
 
     else:
+        if not school_id:
+            return jsonify({"success": False, "message": "参数不合法"}), 400
         if current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.GLOBAL):
             pass
         elif current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SCHOOL):
@@ -174,7 +216,7 @@ def fetch_exam_list():
         task = create_task(
             task_type="fetch_school_exam_list",
             user_id=current_user.id,
-            parameters={"school_id": school_id},
+            parameters={"school_id": school_id, "query_parameters": params},
             timeout=300
         )
         return jsonify({

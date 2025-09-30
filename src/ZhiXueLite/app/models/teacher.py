@@ -35,7 +35,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             cookie_items.append(f"{name}={value}")
         return "; ".join(cookie_items)
 
-    def get_exam_list_selections(self) -> dict[str, str]:
+    def get_exam_list_selections(self) -> dict[str, str]:  # TODO: 针对不同学期等配置的差异化响应
         """
         获取考试列表选项
 
@@ -43,13 +43,21 @@ class ExtendedTeacherAccount(TeacherAccount):
             dict: 考试列表选项
         """
         self.update_login_status()
-        r = self.get_session().post(
+        r = self.get_session().get(
             "https://www.zhixue.com/api-teacher/api/reportlist",
             headers={"token": self.get_token()},
+            params={"queryType": "academicYear"}
         )
         data = r.json()["result"]
         selections = data["selection"]
         selections["gradeList"] = json.loads(data["gradeList"])
+        r = self.get_session().get(
+            "https://www.zhixue.com/api-teacher/api/reportlist",
+            headers={"token": self.get_token()},
+            params={"queryType": "schoolInYear"}
+        )
+        data = r.json()["result"]
+        selections["schoolInYearList"] = data["selection"]["schoolInYearList"]
         return selections
 
     def get_exam_list(self, params: dict[str, str | int] = {}) -> list[Exam]:
@@ -70,9 +78,9 @@ class ExtendedTeacherAccount(TeacherAccount):
         while True:
             if (current_page > pages):
                 break
-            r = self.get_session().post(
+            r = self.get_session().get(  # FIXME: 此处应为 get 请求，参数应放到 args 里
                 "https://www.zhixue.com/api-teacher/api/reportlist",
-                data=params,
+                params=params,
                 headers={"token": self.get_token()},
             )
             for exam in r.json()["result"]["reportList"]:
@@ -481,7 +489,7 @@ def login_teacher_session(cookie: str) -> ExtendedTeacherAccount:
     teacher_account = account.set_base_info().set_advanced_info()
     if updated:
         try:
-            # 检查是否在Flask上下文中
+            # 检查是否在Flask上下文中，如果是则更新数据库中的 cookie
             from flask import has_app_context
             if has_app_context():
                 from app.database import db
