@@ -86,6 +86,7 @@ def get_exam_list():
     - per_page: 每页数量，默认为 10
     - query: 搜索关键字
     - scope: 范围，school（校内）/self（个人）/all（全部），默认为 self
+    - school_id: 范围为 all 时的学校 id，默认不限制
     - start_time: 开始日期，时间戳，默认 0（不限制）
     - end_time: 结束日期，时间戳，默认 0（不限制）
     """
@@ -93,6 +94,7 @@ def get_exam_list():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
     scope = request.args.get("scope", "self", type=str)
+    school_id = request.args.get("school_id", "", type=str)
     start_time = request.args.get("start_time", 0, type=float)
     end_time = request.args.get("end_time", 0, type=float)
 
@@ -108,6 +110,8 @@ def get_exam_list():
         stmt = select(Exam).where(Exam.school_id == current_user.zhixue.school_id)
     elif scope == "all":
         stmt = select(Exam)
+        if school_id:
+            stmt = stmt.where(Exam.school_id == school_id)
     else:
         return jsonify({"success": False, "message": "参数不合法"}), 400
 
