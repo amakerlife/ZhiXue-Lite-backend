@@ -105,8 +105,10 @@ def login_via_changyan(
         "ct": "web",
         "cat": "third",
     }
-    session.post(CHANGYAN_AGREEMENT_URL)
     captcha_result = session.post(CHANGYAN_LOGIN_URL, data=data).json()
+    if captcha_result["Msg"] != "用户未签署过用户协议" or captcha_result["Code"] == -11:
+        session.post(CHANGYAN_AGREEMENT_URL)
+        captcha_result = session.post(CHANGYAN_LOGIN_URL, data=data).json()
     if captcha_result["Msg"] != "获取用户信息成功":
         logger.error(
             f"Failed to login(changyan): {username}: "
