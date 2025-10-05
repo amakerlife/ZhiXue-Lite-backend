@@ -5,7 +5,7 @@ import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from flask_login import UserMixin
-from sqlalchemy import UUID, Boolean, DateTime, Float, ForeignKey, String, Text, Integer
+from sqlalchemy import UUID, Boolean, DateTime, Float, ForeignKey, Index, String, Text, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import BaseDBClass
 
@@ -64,6 +64,10 @@ class ZhiXueTeacherAccount(BaseDBClass):
 
     school: Mapped["School"] = relationship("School", back_populates="teacher")
 
+    __table_args__ = (
+        Index("ix_zhixue_teacher_accounts_school", "school_id"),
+    )
+
 
 class ZhiXueStudentAccount(BaseDBClass):
     """智学网学生账号模型"""
@@ -79,6 +83,10 @@ class ZhiXueStudentAccount(BaseDBClass):
     users: Mapped[Optional[list["User"]]] = relationship("User", back_populates="zhixue")
     school: Mapped["School"] = relationship("School", back_populates="student_accounts")
     user_exams: Mapped[list["UserExam"]] = relationship("UserExam", back_populates="zhixue")
+
+    __table_args__ = (
+        Index("ix_zhixue_student_accounts_school", "school_id"),
+    )
 
     def to_dict_all(self):
         return {
@@ -118,6 +126,11 @@ class Exam(BaseDBClass):
     scores: Mapped[list["Score"]] = relationship("Score", back_populates="exam")
     school: Mapped["School"] = relationship("School", back_populates="exams")
 
+    __table_args__ = (
+        Index("ix_exams_school_created", "school_id", "created_at"),
+        Index("ix_exams_created", "created_at"),
+    )
+
 
 class UserExam(BaseDBClass):
     """用户考试关联模型。关联智学网学生账户和其所有考试"""
@@ -129,6 +142,10 @@ class UserExam(BaseDBClass):
 
     zhixue: Mapped["ZhiXueStudentAccount"] = relationship("ZhiXueStudentAccount", back_populates="user_exams")
     exam: Mapped["Exam"] = relationship("Exam", back_populates="user_exams")
+
+    __table_args__ = (
+        Index("ix_user_exams_zhixue_exam", "zhixue_id", "exam_id"),
+    )
 
 
 class Score(BaseDBClass):
@@ -151,12 +168,17 @@ class Score(BaseDBClass):
     student: Mapped["Student"] = relationship("Student", back_populates="scores")
     exam: Mapped["Exam"] = relationship("Exam", back_populates="scores")
 
+    __table_args__ = (
+        Index("ix_scores_exam_student", "exam_id", "student_id"),
+        Index("ix_scores_exam_sort", "exam_id", "sort"),
+    )
+
 
 class BackgroundTask(BaseDBClass):
     __tablename__ = "background_tasks"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    uuid: Mapped[str] = mapped_column(UUID(as_uuid=False), default=lambda: str(uuid.uuid4()))
+    uuid: Mapped[str] = mapped_column(UUID(as_uuid=False), default=lambda: str(uuid.uuid4()), unique=True)
 
     task_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 任务类型，如 fetch_student_exam_list
     status: Mapped[str] = mapped_column(String(20), default=TaskStatus.PENDING.value, nullable=False)
@@ -184,6 +206,12 @@ class BackgroundTask(BaseDBClass):
     progress_message: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
 
     user = relationship("User", back_populates="background_tasks")
+
+    __table_args__ = (
+        Index("ix_background_tasks_status_created", "status", "created_at"),
+        Index("ix_background_tasks_uuid_user", "uuid", "user_id"),
+        Index("ix_background_tasks_user_created", "user_id", "created_at"),
+    )
 
     def __repr__(self):
         return f"<BackgroundTask {self.id}: {self.task_type} - {self.status}>"
@@ -220,7 +248,7 @@ class User(UserMixin, BaseDBClass):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
-    email: Mapped[Optional[str]] = mapped_column(String(120), unique=True, index=True)
+    email: Mapped[Optional[str]] = mapped_column(String(120), unique=True)
     password_hash: Mapped[Optional[str]] = mapped_column(String(200))
     role: Mapped[Optional[str]] = mapped_column(String(20))
     permissions: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
