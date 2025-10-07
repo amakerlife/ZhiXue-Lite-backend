@@ -1,10 +1,10 @@
 import os
 from datetime import datetime
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager, current_user
+from flask_login import LoginManager, current_user, logout_user
 from flask_session import Session
 from flask_migrate import Migrate
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -83,6 +83,23 @@ def create_app():
             "success": False,
             "message": "Authentication required."
         }), 401
+
+    @app.before_request
+    def check_user_active():
+        """检查用户是否被封禁"""
+        if request.method == "OPTIONS":
+            return
+
+        if request.endpoint in ["user.login", "user.signup", "ping"]:
+            return
+
+        if current_user.is_authenticated and not current_user.is_active:
+            logout_user()
+            return jsonify({
+                "success": False,
+                "message": "Your account has been banned. Please contact the administrator.",
+                "code": "account_banned"
+            }), 403
 
     # 注册蓝图
     from app.user.routes import user_bp

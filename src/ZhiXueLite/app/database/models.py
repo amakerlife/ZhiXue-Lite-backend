@@ -306,6 +306,20 @@ class User(UserMixin, BaseDBClass):
         """检查用户是否为管理员"""
         return self.role == "admin"
 
+    @property
+    def is_authenticated(self) -> bool:
+        """检查用户是否已认证（覆盖 UserMixin 的方法）"""
+        return True
+
+    @property
+    def is_anonymous(self) -> bool:
+        """检查用户是否为匿名用户（覆盖 UserMixin 的方法）"""
+        return False
+
+    def get_id(self) -> str:
+        """返回用户的唯一标识符（覆盖 UserMixin 的方法）"""
+        return str(self.id)
+
     def has_permission(self, permission_type: PermissionType, required_level: PermissionLevel) -> bool:
         """检查用户是否有指定级别的权限"""
         if self.is_admin:
