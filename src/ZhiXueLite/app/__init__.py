@@ -71,9 +71,21 @@ def create_app():
 
     @login_manager.user_loader
     def load_user(user_id):
-        """Flask-Login 要求的回调函数，用于从 ID 加载用户"""
+        """Flask-Login 要求的回调函数，用于从 ID 加载用户
+
+        su 模式：
+        - 如果 session 中有 su_mode 标记，加载被 su 的用户
+        - 否则正常加载当前登录用户
+        """
+        from flask import session as flask_session
         from app.database.models import User
 
+        if flask_session.get("su_mode"):
+            su_user_id = flask_session.get("su_user_id")
+            if su_user_id:
+                return db.session.get(User, int(su_user_id))
+
+        # 正常模式：加载当前登录用户
         return db.session.get(User, int(user_id))
 
     @login_manager.unauthorized_handler

@@ -1,11 +1,12 @@
-from os import rmdir
 from pathlib import Path
-from flask import Blueprint, jsonify, request
-from flask_login import login_required, current_user
+from shutil import rmtree
+from flask import Blueprint, jsonify, request, session
+from flask_login import login_required, current_user, login_user
 from sqlalchemy import select
 from app.database import db
 from app.database.models import Exam, School, ZhiXueStudentAccount, User
 from app.utils.paginate import paginated_json
+from loguru import logger
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -14,6 +15,9 @@ admin_bp = Blueprint("admin", __name__)
 @login_required
 def is_admin():
     if request.method == "OPTIONS":
+        return
+
+    if request.endpoint == "admin.exit_su" and session.get("su_mode"):
         return
 
     if current_user.role != "admin":
@@ -203,9 +207,71 @@ def clear_cache():
             if item.is_file():
                 item.unlink()
             elif item.is_dir():
-                rmdir(item)
+                rmtree(item)
 
         return jsonify({"success": True, "message": "缓存已清除"}), 200
 
     except Exception as e:
         return jsonify({"success": False, "message": "清除缓存失败", "error": str(e)}), 500
+
+
+@admin_bp.route("/su/<string:username>", methods=["POST"])
+def switch_user(username):
+    """管理员切换用户"""
+    if session.get("su_mode"):
+        return jsonify({"success": False, "message": "已处于 su 模式，请先退出"}), 400
+
+    if username == current_user.username:
+        return jsonify({"success": False, "message": "无法切换到自己"}), 400
+
+    target_user = db.session.scalar(select(User).where(User.username == username))
+    if target_user is None:
+        return jsonify({"success": False, "message": "目标用户不存在"}), 404
+
+    if target_user.is_active is False:
+        return jsonify({"success": False, "message": "目标用户已被封禁，无法切换"}), 400
+
+    # 保存原管理员信息（必须在 login_user 之前）
+    admin_username = current_user.username
+    session["su_mode"] = True
+    session["original_user_id"] = current_user.id
+    session["su_user_id"] = target_user.id
+
+    login_user(target_user)
+
+    logger.info(f"管理员 {admin_username} 切换到用户 {target_user.username}")
+
+    return jsonify({
+        "success": True,
+        "message": f"已切换到用户 {target_user.username}",
+        "user": target_user.to_dict()
+    }), 200
+
+
+@admin_bp.route("/su/exit", methods=["POST"])
+def exit_su():
+    """退出 su 模式，恢复管理员身份"""
+    if not session.get("su_mode"):
+        return jsonify({"success": False, "message": "当前不在 su 模式"}), 400
+
+    original_user_id = session.get("original_user_id")
+    if not original_user_id:
+        return jsonify({"success": False, "message": "数据异常"}), 500
+
+    admin_user = db.session.get(User, original_user_id)
+    if admin_user is None:
+        return jsonify({"success": False, "message": "原账户不存在"}), 404
+
+    logger.info(f"管理员 {admin_user.username} 退出 su 模式")
+
+    session.pop("su_user_id", None)
+    session.pop("su_mode", None)
+    session.pop("original_user_id", None)
+
+    login_user(admin_user)
+
+    return jsonify({
+        "success": True,
+        "message": "已退出 su 模式",
+        "user": admin_user.to_dict()
+    }), 200
