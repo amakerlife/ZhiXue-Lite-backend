@@ -408,7 +408,7 @@ def get_user_exam_score(exam_id):
 
 @exam_bp.route("/<string:exam_id>/scoresheet", methods=["GET"])
 @login_required
-@permission_required(PermissionType.EXPORT_SCORE_SHEET, "user")
+@permission_required(PermissionType.EXPORT_SCORE_SHEET, "self")
 def generate_scoresheet(exam_id):
     """
     生成指定考试的成绩单 Excel 文件
