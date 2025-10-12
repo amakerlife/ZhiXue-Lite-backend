@@ -248,7 +248,7 @@ class User(UserMixin, BaseDBClass):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
-    email: Mapped[Optional[str]] = mapped_column(String(120), unique=True)
+    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
     password_hash: Mapped[Optional[str]] = mapped_column(String(200))
     role: Mapped[Optional[str]] = mapped_column(String(20))
     permissions: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
@@ -259,6 +259,10 @@ class User(UserMixin, BaseDBClass):
     last_login_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     zhixue_account_id: Mapped[Optional[str]] = mapped_column(
         String(50), ForeignKey("zhixue_student_accounts.id"), nullable=True)
+
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_verification_token: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    email_verification_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     zhixue: Mapped[Optional["ZhiXueStudentAccount"]] = relationship("ZhiXueStudentAccount", back_populates="users")
     background_tasks: Mapped[list["BackgroundTask"]] = relationship("BackgroundTask", back_populates="user")
@@ -271,10 +275,46 @@ class User(UserMixin, BaseDBClass):
             return False
         return check_password_hash(self.password_hash, password)
 
+    def generate_email_verification_token(self, expires_hours: int = 24):
+        """生成邮箱验证令牌
+
+        Args:
+            expires_hours: 令牌有效期（小时），默认 24 小时
+        """
+        import secrets
+        from datetime import timedelta
+
+        self.email_verification_token = secrets.token_urlsafe(32)
+        self.email_verification_token_expires = datetime.utcnow() + timedelta(hours=expires_hours)
+
+    def verify_email_token(self, token: str) -> bool:
+        """验证邮箱令牌是否有效，并更新邮箱验证状态
+
+        Args:
+            token: 待验证的令牌
+
+        Returns:
+            bool: 令牌有效返回 True，否则返回 False
+        """
+        if not self.email_verification_token or not self.email_verification_token_expires:
+            return False
+
+        if datetime.utcnow() > self.email_verification_token_expires:
+            return False
+
+        if self.email_verification_token == token:
+            self.email_verified = True
+            self.email_verification_token = None
+            self.email_verification_token_expires = None
+            return True
+
+        return False
+
     def to_dict(self):
         return {
             "username": self.username,
             "email": self.email,
+            "email_verified": self.email_verified,
             "role": self.role,
             "permissions": self.permissions,
             "is_active": self.is_active,

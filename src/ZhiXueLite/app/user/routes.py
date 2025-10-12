@@ -8,6 +8,7 @@ from datetime import datetime
 from app import limiter
 from flask_limiter.util import get_remote_address
 from app.utils.turnstile import verify_turnstile_token
+from app.utils.email import is_email_verification_enabled, send_email_change_verification_email, send_signup_verification_email
 
 user_bp = Blueprint("user", __name__)
 
@@ -68,8 +69,16 @@ def signup():
     )
     user.set_password(data["password"])
 
+    if is_email_verification_enabled():
+        user.generate_email_verification_token()
+    else:
+        user.email_verified = True
+
     db.session.add(user)
     db.session.commit()
+
+    if is_email_verification_enabled() and user.email_verification_token:
+        send_signup_verification_email(user.email, user.username, user.email_verification_token)
 
     login_user(user, remember=True)
 
@@ -156,6 +165,12 @@ def update_current_user():
                     User.email == data[field], User.id != current_user.id))
                 if existing_user:
                     return jsonify({"success": False, "message": "邮箱已被其他用户使用"}), 400
+                if data[field] != current_user.email:
+                    if is_email_verification_enabled():
+                        current_user.email_verified = False
+                        current_user.generate_email_verification_token()
+                        send_email_change_verification_email(data[field], current_user.username,
+                                                             current_user.email_verification_token)
             setattr(current_user, field, data[field])
 
     # 单独处理密码
@@ -301,3 +316,54 @@ def get_binding_info():
         result.append({"username": user.username})
 
     return jsonify({"success": True, "binding_info": result}), 200
+
+
+@user_bp.route("/email/verify/<token>", methods=["GET"])
+def verify_email(token):
+    """验证邮箱令牌"""
+    if not is_email_verification_enabled():
+        return jsonify({"success": False, "message": "邮件验证功能未启用"}), 400
+
+    user = db.session.scalar(select(User).where(User.email_verification_token == token))
+
+    if not user:
+        return jsonify({"success": False, "message": "无效的验证令牌"}), 400
+
+    if not user.verify_email_token(token):
+        return jsonify({"success": False, "message": "验证链接已过期，请重新发送验证邮件"}), 400
+
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "邮箱验证成功"}), 200
+
+
+@user_bp.route("/email/resend-verification", methods=["POST"])
+@login_required
+@limiter.limit("3 per hour", key_func=get_user_limit)
+def resend_verification_email():
+    """重新发送验证邮件
+
+    仅限已登录且邮箱未验证的用户
+    """
+    if not is_email_verification_enabled():
+        return jsonify({"success": False, "message": "邮件验证功能未启用"}), 400
+
+    user = db.session.get(User, current_user.id)
+
+    if not user:
+        return jsonify({"success": False, "message": "用户不存在"}), 404
+
+    if user.email_verified:
+        return jsonify({"success": False, "message": "邮箱已验证"}), 400
+
+    # 生成新的验证令牌
+    user.generate_email_verification_token()
+    db.session.commit()
+
+    # 发送验证邮件
+    success = send_signup_verification_email(user.email, user.username, user.email_verification_token)  # type: ignore
+
+    if not success:
+        return jsonify({"success": False, "message": "发送验证邮件失败，请稍后再试"}), 500
+
+    return jsonify({"success": True, "message": "验证邮件已发送，请检查您的邮箱"}), 200

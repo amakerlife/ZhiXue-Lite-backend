@@ -11,6 +11,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.database import db, init_db
 from app.config import config
+from app.utils.email import is_email_verification_enabled
 from app.utils.logger import setup_logger
 import app.database.models  # 确保模型被导入以便 SQLAlchemy 可以识别它们
 
@@ -111,6 +112,25 @@ def create_app():
                 "success": False,
                 "message": "Your account has been banned. Please contact the administrator.",
                 "code": "account_banned"
+            }), 403
+
+    @app.before_request
+    def check_user_verified():
+        """检查用户是否验证邮箱"""
+        if not is_email_verification_enabled():
+            return
+
+        if request.method == "OPTIONS":
+            return
+
+        if request.endpoint in ["user.login", "user.signup", "user.get_current_user", "user.get_binding_info", "user.verify_email", "user.resend_verification_email", "ping"]:
+            return
+
+        if current_user.is_authenticated and not current_user.email_verified:
+            return jsonify({
+                "success": False,
+                "message": "Email verification required. Please verify your email to access this resource.",
+                "code": "email_not_verified"
             }), 403
 
     # 注册蓝图
