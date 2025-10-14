@@ -1,5 +1,7 @@
 import os
 import smtplib
+import uuid
+import time
 from loguru import logger
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -53,6 +55,12 @@ def send_email(to_email: str, subject: str, text_content: Optional[str] = None, 
         message["From"] = f"{config['from_name']} <{config['username']}>"
         message["To"] = to_email
 
+        # 添加唯一 Message-ID
+        # 格式：<uuid.timestamp@domain>
+        domain = config["username"].split("@")[1] if "@" in config["username"] else "localhost"
+        unique_id = f"{uuid.uuid4().hex}.{int(time.time())}"
+        message["Message-ID"] = f"<{unique_id}@{domain}>"
+
         # 添加纯文本内容
         if text_content:
             part1 = MIMEText(text_content, "plain", "utf-8")
@@ -105,7 +113,7 @@ def send_signup_verification_email(to_email: str, username: str, token: str) -> 
 
     你好，{username}！
 
-    感谢你注册 ZhiXue Lite 账户。请访问以下链接验证你的邮箱地址：
+    感谢注册 ZhiXue Lite 账户。请访问以下链接验证你的邮箱地址：
 
     {verification_link}
 
