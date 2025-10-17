@@ -319,6 +319,7 @@ def get_binding_info():
 
 
 @user_bp.route("/email/verify/<token>", methods=["GET"])
+@login_required
 def verify_email(token):
     """验证邮箱令牌"""
     if not is_email_verification_enabled():
