@@ -184,13 +184,29 @@ def draw_answersheet(
                             image, cnt = draw_details(
                                 image, score_text, font, left, top, "blue", cnt
                             )
+                            if len(subtopic["teacherMarkingRecords"]) > 1:
+                                for record in subtopic["teacherMarkingRecords"]:
+                                    teacher_name = record.get(
+                                        "teacherName",
+                                        "未知教师"
+                                    )
+                                    if teacher_name == "":
+                                        teacher_name = "未知教师"
+                                    image, cnt = draw_details(
+                                        image,
+                                        f"{teacher_name} 打分: {record['score']}",
+                                        font,
+                                        left,
+                                        top,
+                                        "blue",
+                                        cnt
+                                    )
+                    elif (isinstance(details["subTopics"], list) and
+                          details["subTopics"]):
+                        subtopic = cast(dict, details["subTopics"][0])
+                        if len(subtopic["teacherMarkingRecords"]) > 1:
                             for record in subtopic["teacherMarkingRecords"]:
-                                teacher_name = record.get(
-                                    "teacherName",
-                                    "未知教师"
-                                )
-                                if teacher_name == "":
-                                    teacher_name = "未知教师"
+                                teacher_name = record.get("teacherName", "未知教师")
                                 image, cnt = draw_details(
                                     image,
                                     f"{teacher_name} 打分: {record['score']}",
@@ -200,20 +216,6 @@ def draw_answersheet(
                                     "blue",
                                     cnt
                                 )
-                    elif (isinstance(details["subTopics"], list) and
-                          details["subTopics"]):
-                        subtopic = cast(dict, details["subTopics"][0])
-                        for record in subtopic["teacherMarkingRecords"]:
-                            teacher_name = record.get("teacherName", "未知教师")
-                            image, cnt = draw_details(
-                                image,
-                                f"{teacher_name} 打分: {record['score']}",
-                                font,
-                                left,
-                                top,
-                                "blue",
-                                cnt
-                            )
 
             # 绘制区域边框及总分
             text_content = f"{sum_score}/{standard_sum_score}"
