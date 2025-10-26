@@ -106,7 +106,7 @@ def send_signup_verification_email(to_email: str, username: str, token: str) -> 
     frontend_url = os.getenv("FRONTEND_URLS", "").split(",")[0]
     verification_link = f"{frontend_url}/verify-email?token={token}"
 
-    subject = "验证您的 ZhiXue Lite 账户"
+    subject = "验证你的 ZhiXue Lite 账户"
 
     text_content = f"""
     欢迎加入 ZhiXue Lite！
@@ -141,7 +141,7 @@ def send_email_change_verification_email(to_email: str, username: str, token: st
     frontend_url = os.getenv("FRONTEND_URLS", "").split(",")[0]
     verification_link = f"{frontend_url}/verify-email?token={token}"
 
-    subject = "验证您的新邮箱地址 - ZhiXue Lite"
+    subject = "验证你的新邮箱地址 - ZhiXue Lite"
 
     text_content = f"""
     你好，{username}！
@@ -153,6 +153,39 @@ def send_email_change_verification_email(to_email: str, username: str, token: st
     注意：此验证链接将在 24 小时后过期。
 
     如果你没有请求更改邮箱地址，请忽略此邮件。
+
+    © ZhiXue Lite. All rights reserved.
+    """
+
+    return send_email(to_email, subject, text_content=text_content)
+
+
+def send_reverification_email(to_email: str, username: str, token: str) -> bool:
+    """发送重新验证邮箱邮件
+
+    Args:
+        to_email: 收件人邮箱
+        username: 用户名
+        token: 验证令牌
+
+    Returns:
+        bool: 发送成功返回 True，失败返回 False
+    """
+    frontend_url = os.getenv("FRONTEND_URLS", "").split(",")[0]
+    verification_link = f"{frontend_url}/verify-email?token={token}"
+
+    subject = "验证你的 ZhiXue Lite 账户"
+
+    text_content = f"""
+    你好，{username}！
+
+    请访问以下链接验证你的 ZhiXue Lite 账户邮箱地址：
+
+    {verification_link}
+
+    注意：此验证链接将在 24 小时后过期。
+
+    如果你没有请求重新验证，请忽略此邮件。
 
     © ZhiXue Lite. All rights reserved.
     """

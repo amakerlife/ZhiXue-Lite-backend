@@ -12,14 +12,16 @@ def create_task(
     task_type: str,
     user_id: int,
     parameters: Optional[dict[str, Any]] = None,
-    timeout: Optional[int] = None
+    timeout: Optional[int] = None,
+    hide: bool = False
 ) -> BackgroundTask:
     """创建新任务"""
     task = BackgroundTask(
         task_type=task_type,
         user_id=user_id,
         parameters=json.dumps(parameters) if parameters else None,
-        timeout=timeout
+        timeout=timeout,
+        hide=hide
     )
     db.session.add(task)
     db.session.commit()
