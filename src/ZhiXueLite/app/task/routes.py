@@ -40,7 +40,7 @@ def get_user_tasks():
     per_page = request.args.get("per_page", 10, type=int)
     status_filter = request.args.get("status")
 
-    stmt = select(BackgroundTask).where(BackgroundTask.user_id == current_user.id)
+    stmt = select(BackgroundTask).where((BackgroundTask.user_id == current_user.id) & (BackgroundTask.hide.is_(False)))
 
     if status_filter:
         try:

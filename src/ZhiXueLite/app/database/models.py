@@ -183,6 +183,7 @@ class BackgroundTask(BaseDBClass):
     task_type: Mapped[str] = mapped_column(String(50), nullable=False)  # 任务类型，如 fetch_student_exam_list
     status: Mapped[str] = mapped_column(String(20), default=TaskStatus.PENDING.value, nullable=False)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)  # 关联的用户ID
+    hide: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否对用户隐藏
 
     # 任务参数（JSON字符串）
     parameters: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

@@ -123,7 +123,7 @@ def create_app():
         if request.method == "OPTIONS":
             return
 
-        if request.endpoint in ["user.login", "user.signup", "user.get_current_user", "user.get_binding_info", "user.verify_email", "user.resend_verification_email", "ping"]:
+        if request.endpoint in ["user.login", "user.signup", "user.get_current_user", "user.get_binding_info", "user.verify_email", "user.resend_verification_email", "user.update_current_user", "ping"]:
             return
 
         if current_user.is_authenticated and not current_user.email_verified:

@@ -7,8 +7,9 @@ from app.database.models import User, School, ZhiXueStudentAccount
 from datetime import datetime
 from app import limiter
 from flask_limiter.util import get_remote_address
+from app.task.repository import create_task
 from app.utils.turnstile import verify_turnstile_token
-from app.utils.email import is_email_verification_enabled, send_email_change_verification_email, send_signup_verification_email
+from app.utils.email import is_email_verification_enabled
 
 user_bp = Blueprint("user", __name__)
 
@@ -78,11 +79,22 @@ def signup():
     db.session.commit()
 
     if is_email_verification_enabled() and user.email_verification_token:
-        send_signup_verification_email(user.email, user.username, user.email_verification_token)
+        create_task(
+            task_type="send_verification_email",
+            user_id=user.id,
+            parameters={
+                "email_type": "signup",
+                "to_email": user.email,
+                "username": user.username,
+                "token": user.email_verification_token
+            },
+            timeout=60,
+            hide=True
+        )
 
     login_user(user, remember=True)
 
-    return jsonify({"success": True, "message": "注册成功", "id": user.id}), 201
+    return jsonify({"success": True, "message": "注册成功，请查收验证邮件", "id": user.id}), 201
 
 
 @user_bp.route("/login", methods=["POST"])
@@ -166,12 +178,25 @@ def update_current_user():
                 if existing_user:
                     return jsonify({"success": False, "message": "邮箱已被其他用户使用"}), 400
                 if data[field] != current_user.email:
+                    setattr(current_user, field, data[field])
                     if is_email_verification_enabled():
                         current_user.email_verified = False
                         current_user.generate_email_verification_token()
-                        send_email_change_verification_email(data[field], current_user.username,
-                                                             current_user.email_verification_token)
-            setattr(current_user, field, data[field])
+                        db.session.flush()
+                        create_task(
+                            task_type="send_verification_email",
+                            user_id=current_user.id,
+                            parameters={
+                                "email_type": "email_change",
+                                "to_email": data[field],
+                                "username": current_user.username,
+                                "token": current_user.email_verification_token
+                            },
+                            timeout=60,
+                            hide=True
+                        )
+            else:
+                setattr(current_user, field, data[field])
 
     # 单独处理密码
     if "password" in data:
@@ -319,6 +344,7 @@ def get_binding_info():
 
 
 @user_bp.route("/email/verify/<token>", methods=["GET"])
+@login_required
 def verify_email(token):
     """验证邮箱令牌"""
     if not is_email_verification_enabled():
@@ -360,10 +386,17 @@ def resend_verification_email():
     user.generate_email_verification_token()
     db.session.commit()
 
-    # 发送验证邮件
-    success = send_signup_verification_email(user.email, user.username, user.email_verification_token)  # type: ignore
-
-    if not success:
-        return jsonify({"success": False, "message": "发送验证邮件失败，请稍后再试"}), 500
+    create_task(
+        task_type="send_verification_email",
+        user_id=user.id,
+        parameters={
+            "email_type": "reverify",
+            "to_email": user.email,
+            "username": user.username,
+            "token": user.email_verification_token
+        },
+        timeout=60,
+        hide=True
+    )
 
     return jsonify({"success": True, "message": "验证邮件已发送，请检查您的邮箱"}), 200

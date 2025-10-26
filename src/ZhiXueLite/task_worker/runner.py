@@ -15,10 +15,14 @@ def load_task_handlers() -> Dict[str, Any]:
     handlers = {}
 
     try:
-        import task_worker.handlers.exam as h
-        handlers["fetch_student_exam_list"] = h.fetch_student_exam_list_handler
-        handlers["fetch_exam_details"] = h.fetch_exam_details_handler
-        handlers["fetch_school_exam_list"] = h.fetch_school_exam_list_handler
+        import task_worker.handlers.exam as exam_h
+        handlers["fetch_student_exam_list"] = exam_h.fetch_student_exam_list_handler
+        handlers["fetch_exam_details"] = exam_h.fetch_exam_details_handler
+        handlers["fetch_school_exam_list"] = exam_h.fetch_school_exam_list_handler
+
+        import task_worker.handlers.email as email_h
+        handlers["send_verification_email"] = email_h.send_verification_email_handler
+
         logger.debug(f"Loaded task handlers: {list(handlers.keys())}")
     except ImportError as e:
         logger.error(f"Failed to import task handlers: {e}")
