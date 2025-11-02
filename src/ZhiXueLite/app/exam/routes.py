@@ -222,6 +222,8 @@ def fetch_exam_list():
 
     else:
         if not school_id:
+            school_id = current_user.school_id if current_user.school_id else ""
+        if school_id == "":
             return jsonify({"success": False, "message": "参数不合法"}), 400
         if current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.GLOBAL):
             pass
