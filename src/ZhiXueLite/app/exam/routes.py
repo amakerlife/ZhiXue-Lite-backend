@@ -255,7 +255,7 @@ def get_exam_info(exam_id):
     if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
         pass
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
-        if current_user.school_id is None or current_user.school_id not in [school.id for school in exam.schools]:
+        if current_user.school_id is None or current_user.school_id not in exam.get_school_ids():
             return jsonify({"success": False, "message": "无权访问该考试"}), 403
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
         if current_user.zhixue is None:
@@ -365,7 +365,7 @@ def get_user_exam_score(exam_id):
     if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
         pass
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
-        if current_user.school_id is None or current_user.school_id not in [school.id for school in exam.schools]:
+        if current_user.school_id is None or current_user.school_id not in exam.get_school_ids():
             return jsonify({"success": False, "message": "无权访问该考试"}), 403
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
         if current_user.zhixue is None:
@@ -379,7 +379,7 @@ def get_user_exam_score(exam_id):
 
     if student_name is not None:
         try:
-            teacher_account = get_teacher("", school_id=school_id)
+            teacher_account = get_teacher(exam_id, school_id=school_id)
             teacher = login_teacher_session(teacher_account.cookie)
             student_ids = teacher.get_student_id_by_name(exam_id, student_name)
             if len(student_ids) == 0:
@@ -430,20 +430,30 @@ def generate_scoresheet(exam_id):
     """
     生成指定考试的成绩单 Excel 文件
     """
+    scope = request.args.get("scope", "school", type=str)  # school or all
+    school_id = request.args.get("school_id", "", type=str)
+
+    if (scope == "school" and school_id == "" and current_user.school_id is None):
+        return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
+    if (scope == "school" and school_id == ""):
+        school_id = str(current_user.school_id)
+
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    if not exam.is_saved:
+    if (scope == "school" and not exam.is_saved_for_school(school_id)):
         return jsonify({"success": False, "message": "考试数据尚未保存，请先拉取考试详情"}), 400
 
     if current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.GLOBAL):
         pass
     elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SCHOOL):
-        if current_user.school_id is None or current_user.school_id not in [school.id for school in exam.schools]:
+        if scope == "all" or school_id != current_user.school_id:
             return jsonify({"success": False, "message": "无权访问该考试"}), 403
     elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SELF):
+        if scope == "all":
+            return jsonify({"success": False, "message": "无权访问该考试"}), 403
         if current_user.zhixue is None:
             return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
         stmt = select(UserExam).where(
@@ -453,13 +463,9 @@ def generate_scoresheet(exam_id):
         if not db.session.scalar(stmt):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
 
-    # 支持联考：只导出该学校的成绩数据
-    if current_user.school_id is None:
-        return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
-    stmt = select(Score).where(
-        (Score.exam_id == exam_id) &
-        (Score.school_id == current_user.school_id)
-    ).join(Student)
+    stmt = select(Score).where(Score.exam_id == exam_id)
+    if scope == "school":
+        stmt = stmt.where(Score.school_id == school_id)
     scores_data = db.session.scalars(stmt).all()
 
     if not scores_data:
@@ -607,13 +613,13 @@ def generate_answersheet(exam_id, subject_id):
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    if len(exam.schools) and school_id is None:
+    if len(exam.schools) > 1 and school_id is None:
         return jsonify({"success": False, "message": "该考试为联考，必须指定学校 ID"}), 400
 
     if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
         pass
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
-        if current_user.school_id is None or current_user.school_id not in [school.id for school in exam.schools]:
+        if current_user.school_id is None or current_user.school_id not in exam.get_school_ids():
             return jsonify({"success": False, "message": "无权访问该考试"}), 403
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
         if current_user.zhixue is None:
@@ -631,7 +637,7 @@ def generate_answersheet(exam_id, subject_id):
 
     if student_name is not None:
         try:
-            teacher_account = get_teacher("", school_id=school_id)
+            teacher_account = get_teacher(exam_id, school_id=school_id)
             teacher = login_teacher_session(teacher_account.cookie)
             student_ids = teacher.get_student_id_by_name(exam_id, student_name)
             if len(student_ids) == 0:

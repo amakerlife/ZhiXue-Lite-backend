@@ -11,7 +11,7 @@ from task_worker.repository import update_task_progress
 from loguru import logger
 
 
-def get_teacher(session: Session, exam_id: str, school_id: str | None = None, user: User | None = None) -> ZhiXueTeacherAccount:
+def get_teacher(session: Session, exam_id: str, school_id: str | None = None) -> ZhiXueTeacherAccount:
     if not school_id:
         schools = session.scalar(select(Exam.schools).where(Exam.id == exam_id))
         if schools is None or len(schools) > 1:
@@ -19,8 +19,6 @@ def get_teacher(session: Session, exam_id: str, school_id: str | None = None, us
                 f"exam {exam_id} is multi-school exam or can not be found, school_id required")
         else:
             school_id = schools[0].school_id
-    if user and not school_id and user.school_id:
-        school_id = user.school_id
     if not school_id:
         raise FailedToGetTeacherAccountError(f"teacher not found for exam_id: {exam_id}")
 
@@ -64,14 +62,11 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
                     id=exam.id,
                     name=exam.name,
                     created_at=exam.create_time,
-                    # DEPRECATED: 保留 school_id 用于向下兼容，新逻辑使用 ExamSchool
-                    school_id=user.school_id
                 )
                 session.add(new_exam)
                 session.flush()
-                existing_exam = new_exam
 
-            # 检查/创建 ExamSchool 关联（支持联考）
+            # 检查/创建 ExamSchool 关联（联考）
             stmt = select(ExamSchool).where(
                 (ExamSchool.exam_id == exam.id) & (ExamSchool.school_id == user.school_id)
             )
@@ -140,16 +135,12 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         if exam_school and exam_school.is_saved and not force_refresh:
             update_task_progress(session, task_id, 100, "该学校考试数据已被保存，无需重复拉取")
             return {"success": True}
-    # DEPRECATED: 向下兼容旧逻辑（exam.is_saved）
-    elif exam and exam.is_saved and not force_refresh:
-        update_task_progress(session, task_id, 100, "考试已被保存，无需重复拉取（向下兼容）")
-        return {"success": True}
 
     try:
         update_task_progress(session, task_id, 10, "正在获取可用账号...")
         stmt = select(User).where(User.id == user_id)
         user = session.scalar(stmt)
-        teacher_account = get_teacher(session, exam_id, school_id, user)
+        teacher_account = get_teacher(session, exam_id, school_id)
         # 确保 school_id 存在
         if not school_id:
             school_id = teacher_account.school_id
@@ -166,13 +157,11 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                 id=exam_id,
                 name=exam_v.name,
                 created_at=exam_v.create_time,
-                # DEPRECATED: 保留 school_id 用于向下兼容
-                school_id=school_id
             )
             session.add(exam)
             session.flush()
 
-        # 检查/创建 ExamSchool 关联（支持联考）
+        # 检查/创建 ExamSchool 关联（联考）
         stmt = select(ExamSchool).where(
             (ExamSchool.exam_id == exam_id) & (ExamSchool.school_id == school_id)
         )
@@ -251,8 +240,6 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
 
         # 支持联考：标记该学校的考试数据已保存
         exam_school.is_saved = True
-        # DEPRECATED: 向下兼容，也标记全局 is_saved
-        exam.is_saved = True
 
         update_task_progress(session, task_id, 100, "任务完成")
 
@@ -290,14 +277,11 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
                     id=exam.id,
                     name=exam.name,
                     created_at=exam.create_time,
-                    # DEPRECATED: 保留 school_id 用于向下兼容，新逻辑使用 ExamSchool
-                    school_id=school_id
                 )
                 session.add(new_exam)
                 session.flush()
-                existing_exam = new_exam
 
-            # 检查/创建 ExamSchool 关联（支持联考）
+            # 检查/创建 ExamSchool 关联（联考）
             stmt = select(ExamSchool).where(
                 (ExamSchool.exam_id == exam.id) & (ExamSchool.school_id == school_id)
             )

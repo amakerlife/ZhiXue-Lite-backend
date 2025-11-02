@@ -233,7 +233,7 @@ class Score(BaseDBClass):
     school: Mapped["School"] = relationship("School")
 
     __table_args__ = (
-        Index("ix_scores_exam_student_school", "exam_id", "student_id"),
+        Index("ix_scores_exam_student", "exam_id", "student_id"),
         Index("ix_scores_exam_school", "exam_id", "school_id"),
         Index("ix_scores_exam_sort", "exam_id", "sort"),
     )
@@ -388,9 +388,12 @@ class User(UserMixin, BaseDBClass):
             "permissions": self.permissions,
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
-            "zhixue_username": self.zhixue.username if self.zhixue else None,
-            "zhixue_realname": self.zhixue.realname if self.zhixue else None,
-            "zhixue_school": self.zhixue.school.name if self.zhixue else None,
+            "zhixue_info": {
+                "username": self.zhixue.username if self.zhixue else None,
+                "realname": self.zhixue.realname if self.zhixue else None,
+                "school_name": self.school_name,
+                "school_id": self.school_id,
+            },
         }
 
     def to_dict_all(self):
@@ -405,9 +408,12 @@ class User(UserMixin, BaseDBClass):
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "registration_ip": self.registration_ip,
             "last_login_ip": self.last_login_ip,
-            "zhixue_username": self.zhixue.username if self.zhixue else None,
-            "zhixue_realname": self.zhixue.realname if self.zhixue else None,
-            "zhixue_school": self.zhixue.school.name if self.zhixue else None,
+            "zhixue_info": {
+                "username": self.zhixue.username if self.zhixue else None,
+                "realname": self.zhixue.realname if self.zhixue else None,
+                "school_name": self.school_name,
+                "school_id": self.school_id,
+            },
         }
 
     @property
@@ -439,6 +445,16 @@ class User(UserMixin, BaseDBClass):
             return self.zhixue.school_id
         return self.manual_school_id
 
+    @property
+    def school_name(self) -> Optional[str]:
+        """获取用户所属学校名称
+
+        优先返回智学网账号绑定的学校，否则返回管理员手动分配的学校。
+        """
+        if self.zhixue:
+            return self.zhixue.school.name if self.zhixue.school else None
+        return self.manual_school.name if self.manual_school else None
+
     def has_permission(self, permission_type: PermissionType, required_level: PermissionLevel) -> bool:
         """检查用户是否有指定级别的权限"""
         if self.is_admin:
@@ -452,8 +468,10 @@ class User(UserMixin, BaseDBClass):
         if user_level < required_level.value:
             return False
 
-        # 对于需要 SCHOOL 级别权限的操作，检查用户是否有学校（智学网绑定或手动分配）
         if self.school_id is None and required_level == PermissionLevel.SCHOOL:
+            return False
+
+        if self.zhixue is None and required_level == PermissionLevel.SELF:
             return False
 
         return True
