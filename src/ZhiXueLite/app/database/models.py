@@ -399,6 +399,7 @@ class User(UserMixin, BaseDBClass):
             "permissions": self.permissions,
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
+            "is_manual_school": self.manual_school_id is not None,
             "zhixue_info": {
                 "username": self.zhixue.username if self.zhixue else None,
                 "realname": self.zhixue.realname if self.zhixue else None,
@@ -419,6 +420,7 @@ class User(UserMixin, BaseDBClass):
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "registration_ip": self.registration_ip,
             "last_login_ip": self.last_login_ip,
+            "is_manual_school": self.manual_school_id is not None,
             "zhixue_info": {
                 "username": self.zhixue.username if self.zhixue else None,
                 "realname": self.zhixue.realname if self.zhixue else None,
@@ -482,7 +484,7 @@ class User(UserMixin, BaseDBClass):
         if self.school_id is None and required_level == PermissionLevel.SCHOOL:
             return False
 
-        if self.zhixue is None and required_level == PermissionLevel.SELF:
+        if self.zhixue is None and self.manual_school is None and required_level == PermissionLevel.SELF:
             return False
 
         return True

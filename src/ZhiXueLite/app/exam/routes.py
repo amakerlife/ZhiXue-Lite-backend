@@ -138,7 +138,7 @@ def get_exam_list():
     paginated_exams = paginated_json(exams, page, per_page)
     exam_list = []
     for item in paginated_exams["items"]:
-        is_saved = item.is_saved_for_school(school_id)
+        is_saved = item.is_saved_for_school(school_id if school_id else current_user.school_id)
         if scope == "all" and school_id == "":
             is_saved = item.get_schools_saved_status()
 
@@ -271,18 +271,34 @@ def get_exam_info(exam_id):
         if not db.session.scalar(stmt):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
 
-    is_saved = exam.is_saved_for_school(current_user.school_id) if current_user.school_id else False
+    # 根据权限返回不同的学校列表
+    is_multi_school = len(exam.schools) > 1
     if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
-        is_saved = exam.get_schools_saved_status()
+        # GLOBAL 权限：返回所有学校信息
+        schools = exam.get_schools_saved_status()
+    elif current_user.school_id:
+        # 有默认学校：只返回该学校信息
+        schools = [
+            {
+                "school_id": es.school_id,
+                "school_name": es.school.name if es.school else None,
+                "is_saved": es.is_saved
+            }
+            for es in exam.schools
+            if es.school_id == current_user.school_id
+        ]
+    else:
+        # 无学校信息：返回空列表
+        schools = []
 
     return jsonify({
         "success": True,
         "exam": {
             "id": exam.id,
             "name": exam.name,
-            "is_multi_school": len(exam.schools) > 1,
-            "is_saved": is_saved,
-            "created_at": exam.created_at
+            "is_multi_school": is_multi_school,
+            "created_at": exam.created_at,
+            "schools": schools
         }
     }), 200
 
@@ -334,6 +350,9 @@ def fetch_exam(exam_id):
                 return jsonify({"success": False, "message": "无权使用强制刷新功能"}), 403
         else:
             return jsonify({"success": False, "message": "Access Denied"}), 403
+
+    if school_id == "" and current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SELF):
+        school_id = current_user.school_id
 
     task = create_task(
         task_type="fetch_exam_details",
@@ -427,18 +446,35 @@ def get_user_exam_score(exam_id):
             "sort": raw_score.sort,
         })
 
-    is_saved = exam.is_saved_for_school(school_id)
+    # 根据权限返回不同的学校列表
+    is_multi_school = len(exam.schools) > 1
     if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
-        is_saved = exam.get_schools_saved_status()
+        # GLOBAL 权限：返回所有学校信息
+        schools = exam.get_schools_saved_status()
+    elif school_id:
+        # 指定了 school_id：只返回该学校信息
+        schools = [
+            {
+                "school_id": es.school_id,
+                "school_name": es.school.name if es.school else None,
+                "is_saved": es.is_saved
+            }
+            for es in exam.schools
+            if es.school_id == school_id
+        ]
+    else:
+        # 无学校信息：返回空列表
+        schools = []
 
     return jsonify({
         "success": True,
         "id": exam.id,
         "name": exam.name,
-        "is_saved": is_saved,
         "created_at": exam.created_at,
         "student_id": student_id,
-        "scores": scores
+        "scores": scores,
+        "is_multi_school": is_multi_school,
+        "schools": schools
     }), 200
 
 
@@ -506,6 +542,7 @@ def generate_scoresheet(exam_id):
         if student_id not in student_dict:
             student_dict[student_id] = {
                 "name": score.student.name,
+                "school": score.school.name if score.school else None,
                 "label": score.student.label,
                 "class_name": score.class_name,
                 "subjects": {}
@@ -566,7 +603,7 @@ def generate_scoresheet(exam_id):
 
     student_list = sorted(student_dict.items(), key=get_sort_key)
 
-    titles = ["姓名", "标签", "班级"]
+    titles = ["姓名", "学校", "标签", "班级"]
     for subject_name in subject_names:
         titles.extend([
             f"{subject_name}成绩",
@@ -578,6 +615,7 @@ def generate_scoresheet(exam_id):
     for student_id, student_info in student_list:
         row = [
             student_info["name"],
+            student_info["school"],
             student_info["label"],
             student_info["class_name"]
         ]

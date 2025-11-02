@@ -126,7 +126,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
     if not exam and not school_id:
         raise ValueError(f"Exam not found: {exam_id}")
 
-    # 支持联考：检查该学校的考试是否已保存（而不是全局 exam.is_saved）
+    # 检查该学校的考试是否已保存
     if exam and school_id:
         stmt = select(ExamSchool).where(
             (ExamSchool.exam_id == exam_id) & (ExamSchool.school_id == school_id)
