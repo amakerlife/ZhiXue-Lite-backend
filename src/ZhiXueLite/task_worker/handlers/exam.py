@@ -198,10 +198,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     (Score.student_id == student_score.user_id) &
                     (Score.exam_id == exam_id) &
                     (Score.subject_id == score.topicsetid) &
-                    (
-                        (Score.school_id == school_id) |
-                        (Score.school_id.is_(None))
-                    )  # 支持联考：区分不同学校的成绩，同时兼容 school_id 为空的旧数据
+                    (Score.school_id == school_id)  # 支持联考：区分不同学校的成绩
                 )
                 existing_score = session.scalar(stmt)
                 if existing_score and not force_refresh:

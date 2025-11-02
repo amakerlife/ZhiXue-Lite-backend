@@ -7,7 +7,7 @@ import time
 from openpyxl import Workbook
 from sqlalchemy import select, desc
 from app.database import db
-from app.database.models import Exam, ExamSchool, PermissionLevel, Score, User, UserExam, Student, ZhiXueTeacherAccount, PermissionType
+from app.database.models import Exam, ExamSchool, PermissionLevel, Score, User, UserExam, ZhiXueTeacherAccount, PermissionType
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
 from app.task.repository import create_task
@@ -435,7 +435,7 @@ def generate_scoresheet(exam_id):
 
     if (scope == "school" and school_id == "" and current_user.school_id is None):
         return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
-    if (scope == "school" and school_id == ""):
+    if scope == "school" and school_id == "":
         school_id = str(current_user.school_id)
 
     stmt = select(Exam).where(Exam.id == exam_id)
