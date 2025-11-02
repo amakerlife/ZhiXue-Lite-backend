@@ -13,12 +13,12 @@ from loguru import logger
 
 def get_teacher(session: Session, exam_id: str, school_id: str | None = None) -> ZhiXueTeacherAccount:
     if not school_id:
-        schools = session.scalar(select(Exam.schools).where(Exam.id == exam_id))
-        if schools is None or len(schools) > 1:
+        exam = session.scalar(select(Exam).where(Exam.id == exam_id))
+        if exam is None or len(exam.schools) > 1:
             raise FailedToGetTeacherAccountError(
                 f"exam {exam_id} is multi-school exam or can not be found, school_id required")
         else:
-            school_id = schools[0].school_id
+            school_id = exam.schools[0].school_id
     if not school_id:
         raise FailedToGetTeacherAccountError(f"teacher not found for exam_id: {exam_id}")
 
