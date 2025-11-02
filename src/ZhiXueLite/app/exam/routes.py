@@ -138,11 +138,15 @@ def get_exam_list():
     paginated_exams = paginated_json(exams, page, per_page)
     exam_list = []
     for item in paginated_exams["items"]:
+        is_saved = item.is_saved_for_school(school_id)
+        if scope == "all" and school_id == "":
+            is_saved = item.get_schools_saved_status()
+
         exam_list.append({
             "id": item.id,
             "name": item.name,
             "created_at": item.created_at,
-            "is_saved": item.is_saved
+            "is_saved": is_saved
         })
 
     return jsonify({
@@ -267,13 +271,17 @@ def get_exam_info(exam_id):
         if not db.session.scalar(stmt):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
 
+    is_saved = exam.is_saved_for_school(current_user.school_id) if current_user.school_id else False
+    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
+        is_saved = exam.get_schools_saved_status()
+
     return jsonify({
         "success": True,
         "exam": {
             "id": exam.id,
             "name": exam.name,
             "is_multi_school": len(exam.schools) > 1,
-            "is_saved": exam.is_saved,
+            "is_saved": is_saved,
             "created_at": exam.created_at
         }
     }), 200
@@ -362,6 +370,9 @@ def get_user_exam_score(exam_id):
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
+    if school_id and school_id not in exam.get_school_ids():
+        return jsonify({"success": False, "message": "该学校未参与此次考试"}), 400
+
     if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
         pass
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
@@ -393,11 +404,15 @@ def get_user_exam_score(exam_id):
     if student_id is None:
         student_id = current_user.zhixue_account_id
 
-    # 支持联考：过滤该学校的成绩数据
+    if school_id is None:
+        if current_user.school_id is None:
+            return jsonify({"success": False, "message": "请指定学校 ID"}), 400
+        school_id = str(current_user.school_id)
+
     stmt = select(Score).where(
         (Score.exam_id == exam_id) &
         (Score.student_id == student_id) &
-        (Score.school_id == current_user.school_id)
+        (Score.school_id == school_id)
     ).order_by(Score.sort)
     raw_scores = db.session.scalars(stmt).all()
     scores = []
@@ -412,11 +427,15 @@ def get_user_exam_score(exam_id):
             "sort": raw_score.sort,
         })
 
+    is_saved = exam.is_saved_for_school(school_id)
+    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
+        is_saved = exam.get_schools_saved_status()
+
     return jsonify({
         "success": True,
         "id": exam.id,
         "name": exam.name,
-        "is_saved": exam.is_saved,
+        "is_saved": is_saved,
         "created_at": exam.created_at,
         "student_id": student_id,
         "scores": scores
@@ -442,6 +461,8 @@ def generate_scoresheet(exam_id):
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
+    if scope == "school" and school_id not in exam.get_school_ids():
+        return jsonify({"success": False, "message": "该学校未参与此次考试"}), 400
 
     if (scope == "school" and not exam.is_saved_for_school(school_id)):
         return jsonify({"success": False, "message": "考试数据尚未保存，请先拉取考试详情"}), 400

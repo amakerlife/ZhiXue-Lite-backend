@@ -107,9 +107,8 @@ def list_exams():
         {
             "id": exam.id,
             "name": exam.name,
-            "is_saved": exam.is_saved,
-            "school": exam.school.name,
-            "created_at": exam.created_at
+            "created_at": exam.created_at,
+            "schools": exam.get_schools_saved_status()
         } for exam in paginated_exams["items"]]
 
     return jsonify({

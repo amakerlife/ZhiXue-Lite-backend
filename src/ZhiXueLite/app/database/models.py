@@ -160,9 +160,20 @@ class Exam(BaseDBClass):
         Index("ix_exams_created", "created_at"),
     )
 
-    def get_school_ids(self) -> list[str]:
-        """获取所有参与学校的 ID（支持联考）"""
+    def get_school_ids(self) -> list[str]:  # FIXME: N+1 查询
+        """获取所有参与学校的 ID"""
         return [es.school_id for es in self.schools]
+
+    def get_schools_saved_status(self) -> list[dict]:
+        """获取所有参与学校的保存状态信息"""
+        return [
+            {
+                "school_id": es.school_id,
+                "school_name": es.school.name,
+                "is_saved": es.is_saved
+            }
+            for es in self.schools
+        ]
 
     def is_saved_for_school(self, school_id: str) -> bool:
         """检查指定学校是否已保存考试数据
