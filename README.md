@@ -25,6 +25,8 @@ flask run
 
 ## Todo List
 
+get_user api 管理员返回是否在 su 模式
+
 支持选择学校（后端返回学校列表）
 
 考试数据库存储考试年级、级别、学校(list)等详细信息

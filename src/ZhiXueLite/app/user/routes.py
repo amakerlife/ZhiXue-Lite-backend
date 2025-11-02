@@ -274,6 +274,7 @@ def connect_zhixue():
         ZhiXueStudentAccount.username == zhixue_username))
     if zhixue_record and zhixue_password == zhixue_record.password:
         user.zhixue = zhixue_record
+        user.manual_school_id = None  # 绑定智学网账号后清除手动分配的学校
         db.session.commit()
         return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
 
@@ -306,6 +307,7 @@ def connect_zhixue():
         db.session.add(zhixue_record)
 
     user.zhixue = zhixue_record
+    user.manual_school_id = None  # 绑定智学网账号后清除手动分配的学校
 
     db.session.commit()
     return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
