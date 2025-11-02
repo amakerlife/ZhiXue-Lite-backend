@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database.models import Exam, Score, Student, UserExam, User, ZhiXueTeacherAccount
+from app.database.models import Exam, ExamSchool, Score, Student, UserExam, User, ZhiXueTeacherAccount
 from app.models.student import login_student_session
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
@@ -11,11 +11,14 @@ from task_worker.repository import update_task_progress
 from loguru import logger
 
 
-def get_teacher(session: Session, exam_id: str, school_id: str | None = None, user: User | None = None) -> ZhiXueTeacherAccount:
+def get_teacher(session: Session, exam_id: str, school_id: str | None = None) -> ZhiXueTeacherAccount:
     if not school_id:
-        school_id = session.scalar(select(Exam.school_id).where(Exam.id == exam_id))
-    if user and not school_id and user.zhixue:
-        school_id = user.zhixue.school_id
+        exam = session.scalar(select(Exam).where(Exam.id == exam_id))
+        if exam is None or len(exam.schools) > 1:
+            raise FailedToGetTeacherAccountError(
+                f"exam {exam_id} is multi-school exam or can not be found, school_id required")
+        else:
+            school_id = exam.schools[0].school_id
     if not school_id:
         raise FailedToGetTeacherAccountError(f"teacher not found for exam_id: {exam_id}")
 
@@ -54,13 +57,27 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
             # 检查考试是否已存在
             existing_exam = session.get(Exam, exam.id)
             if not existing_exam:
+                # 创建新考试记录（支持联考，不再强制 school_id）
                 new_exam = Exam(
                     id=exam.id,
                     name=exam.name,
                     created_at=exam.create_time,
-                    school_id=user.zhixue.school_id
                 )
                 session.add(new_exam)
+                session.flush()
+
+            # 检查/创建 ExamSchool 关联（联考）
+            stmt = select(ExamSchool).where(
+                (ExamSchool.exam_id == exam.id) & (ExamSchool.school_id == user.school_id)
+            )
+            exam_school = session.scalar(stmt)
+            if not exam_school:
+                exam_school = ExamSchool(
+                    exam_id=exam.id,
+                    school_id=user.school_id,
+                    is_saved=False
+                )
+                session.add(exam_school)
                 session.flush()
 
             # 检查用户考试记录是否已存在
@@ -108,29 +125,54 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
     exam = session.scalar(stmt)
     if not exam and not school_id:
         raise ValueError(f"Exam not found: {exam_id}")
-    if exam and exam.is_saved and not force_refresh:
-        update_task_progress(session, task_id, 100, "考试已被保存，无需重复拉取")
-        return {"success": True}
+
+    # 支持联考：检查该学校的考试是否已保存（而不是全局 exam.is_saved）
+    if exam and school_id:
+        stmt = select(ExamSchool).where(
+            (ExamSchool.exam_id == exam_id) & (ExamSchool.school_id == school_id)
+        )
+        exam_school = session.scalar(stmt)
+        if exam_school and exam_school.is_saved and not force_refresh:
+            update_task_progress(session, task_id, 100, "该学校考试数据已被保存，无需重复拉取")
+            return {"success": True}
 
     try:
         update_task_progress(session, task_id, 10, "正在获取可用账号...")
         stmt = select(User).where(User.id == user_id)
         user = session.scalar(stmt)
-        teacher_account = get_teacher(session, exam_id, school_id, user)
+        teacher_account = get_teacher(session, exam_id, school_id)
+        # 确保 school_id 存在
+        if not school_id:
+            school_id = teacher_account.school_id
+
         teacher = login_teacher_session(teacher_account.cookie)
         if teacher_account.cookie != teacher.get_cookie():
             teacher_account.cookie = teacher.get_cookie()
             session.flush()
 
         if not exam:
+            # 创建考试记录（支持联考）
             exam_v = teacher.get_exam_detail(exam_id)
             exam = Exam(
                 id=exam_id,
                 name=exam_v.name,
                 created_at=exam_v.create_time,
-                school_id=teacher_account.school_id
             )
             session.add(exam)
+            session.flush()
+
+        # 检查/创建 ExamSchool 关联（联考）
+        stmt = select(ExamSchool).where(
+            (ExamSchool.exam_id == exam_id) & (ExamSchool.school_id == school_id)
+        )
+        exam_school = session.scalar(stmt)
+        if not exam_school:
+            exam_school = ExamSchool(
+                exam_id=exam_id,
+                school_id=school_id,
+                is_saved=False
+            )
+            session.add(exam_school)
             session.flush()
 
         update_task_progress(session, task_id, 30, "正在拉取考试成绩...")
@@ -155,7 +197,8 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                 stmt = select(Score).where(
                     (Score.student_id == student_score.user_id) &
                     (Score.exam_id == exam_id) &
-                    (Score.subject_id == score.topicsetid)
+                    (Score.subject_id == score.topicsetid) &
+                    (Score.school_id == school_id)  # 支持联考：区分不同学校的成绩
                 )
                 existing_score = session.scalar(stmt)
                 if existing_score and not force_refresh:
@@ -166,12 +209,16 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     existing_score.class_rank = score.classrank
                     existing_score.school_rank = score.schoolrank
                     existing_score.sort = score.sort
+                    # 如果 legacy 数据 school_id 为 None，则补全 school_id
+                    if existing_score.school_id is None:
+                        existing_score.school_id = school_id
                     session.flush()
                     continue
 
                 new_score = Score(
                     student_id=student_score.user_id,
                     exam_id=exam_id,
+                    school_id=school_id,  # 支持联考：记录成绩所属学校
                     subject_id=score.topicsetid,
                     subject_name=score.name if score.subjectcode != -1 else "总分",
                     class_name=student_score.class_name,
@@ -188,7 +235,8 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                 progress = int(50 + (i + 1) / total_students * 49)
                 update_task_progress(session, task_id, progress, f"已处理 {i + 1}/{total_students} 个学生")
 
-        exam.is_saved = True
+        # 支持联考：标记该学校的考试数据已保存
+        exam_school.is_saved = True
 
         update_task_progress(session, task_id, 100, "任务完成")
 
@@ -221,13 +269,27 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
             # 检查考试是否已存在
             existing_exam = session.get(Exam, exam.id)
             if not existing_exam:
+                # 创建新考试记录（支持联考）
                 new_exam = Exam(
                     id=exam.id,
                     name=exam.name,
                     created_at=exam.create_time,
-                    school_id=school_id
                 )
                 session.add(new_exam)
+                session.flush()
+
+            # 检查/创建 ExamSchool 关联（联考）
+            stmt = select(ExamSchool).where(
+                (ExamSchool.exam_id == exam.id) & (ExamSchool.school_id == school_id)
+            )
+            exam_school = session.scalar(stmt)
+            if not exam_school:
+                exam_school = ExamSchool(
+                    exam_id=exam.id,
+                    school_id=school_id,
+                    is_saved=False
+                )
+                session.add(exam_school)
                 session.flush()
 
             if i % 20 == 0 or i == total_exams - 1:

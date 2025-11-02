@@ -5,7 +5,7 @@ import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from flask_login import UserMixin
-from sqlalchemy import UUID, Boolean, DateTime, Float, ForeignKey, Index, String, Text, Integer
+from sqlalchemy import UUID, Boolean, DateTime, Float, ForeignKey, Index, String, Text, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import BaseDBClass
 
@@ -112,6 +112,28 @@ class Student(BaseDBClass):
     scores: Mapped[list["Score"]] = relationship("Score", back_populates="student")
 
 
+class ExamSchool(BaseDBClass):
+    """考试-学校关联表，支持联考场景
+
+    一场考试可以关联多个学校（联考），每个学校独立维护数据保存状态。
+    """
+    __tablename__ = "exam_schools"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"), nullable=False)
+    school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"), nullable=False)
+    is_saved: Mapped[bool] = mapped_column(Boolean, default=False)  # 每个学校单独跟踪数据保存状态
+
+    exam: Mapped["Exam"] = relationship("Exam", back_populates="schools")
+    school: Mapped["School"] = relationship("School")
+
+    __table_args__ = (
+        UniqueConstraint("exam_id", "school_id"),
+        Index("ix_exam_schools_exam", "exam_id"),
+        Index("ix_exam_schools_school", "school_id"),
+    )
+
+
 class Exam(BaseDBClass):
     """考试信息模型"""
     __tablename__ = "exams"
@@ -119,17 +141,67 @@ class Exam(BaseDBClass):
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[float] = mapped_column(Float)
+    # DEPRECATED: is_saved 已迁移到 ExamSchool.is_saved（支持联考后每个学校独立保存状态）
+    # 保留此字段用于向下兼容，数据库迁移时会删除
     is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
-    school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))  # TODO: 支持联考
+    # DEPRECATED: school_id 已改为多对多关系（通过 ExamSchool 表）
+    # 保留此字段用于向下兼容，新代码应使用 schools 关系
+    school_id: Mapped[Optional[str]] = mapped_column(String(50), ForeignKey("schools.id"), nullable=True)
 
     user_exams: Mapped[list["UserExam"]] = relationship("UserExam", back_populates="exam")
     scores: Mapped[list["Score"]] = relationship("Score", back_populates="exam")
-    school: Mapped["School"] = relationship("School", back_populates="exams")
+    # DEPRECATED: 保留单一 school 关系用于向下兼容
+    school: Mapped[Optional["School"]] = relationship("School", foreign_keys=[school_id], back_populates="exams")
+    # 新的多对多关系
+    schools: Mapped[list["ExamSchool"]] = relationship("ExamSchool", back_populates="exam")
 
     __table_args__ = (
         Index("ix_exams_school_created", "school_id", "created_at"),
         Index("ix_exams_created", "created_at"),
     )
+
+    def get_school_ids(self) -> list[str]:  # FIXME: N+1 查询
+        """获取所有参与学校的 ID"""
+        return [es.school_id for es in self.schools]
+
+    def get_schools_saved_status(self) -> list[dict]:
+        """获取所有参与学校的保存状态信息"""
+        return [
+            {
+                "school_id": es.school_id,
+                "school_name": es.school.name,
+                "is_saved": es.is_saved
+            }
+            for es in self.schools
+        ]
+
+    def is_saved_for_school(self, school_id: str) -> bool:
+        """检查指定学校是否已保存考试数据
+
+        Args:
+            school_id: 学校 ID
+
+        Returns:
+            bool: 该学校是否已保存数据
+        """
+        for es in self.schools:
+            if es.school_id == school_id:
+                return es.is_saved
+        return False
+
+    def get_exam_school(self, school_id: str) -> Optional["ExamSchool"]:
+        """获取指定学校的考试关联记录
+
+        Args:
+            school_id: 学校 ID
+
+        Returns:
+            ExamSchool | None: 关联记录，不存在则返回 None
+        """
+        for es in self.schools:
+            if es.school_id == school_id:
+                return es
+        return None
 
 
 class UserExam(BaseDBClass):
@@ -154,6 +226,8 @@ class Score(BaseDBClass):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     student_id: Mapped[str] = mapped_column(String(50), ForeignKey("students.id"))
     exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"))
+    # 新增：支持联考场景，区分不同学校的成绩数据
+    school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))
     subject_id: Mapped[str] = mapped_column(String(50))
     subject_name: Mapped[str] = mapped_column(String(50))
     class_name: Mapped[str] = mapped_column(String(50))
@@ -167,9 +241,11 @@ class Score(BaseDBClass):
 
     student: Mapped["Student"] = relationship("Student", back_populates="scores")
     exam: Mapped["Exam"] = relationship("Exam", back_populates="scores")
+    school: Mapped["School"] = relationship("School")
 
     __table_args__ = (
         Index("ix_scores_exam_student", "exam_id", "student_id"),
+        Index("ix_scores_exam_school", "exam_id", "school_id"),
         Index("ix_scores_exam_sort", "exam_id", "sort"),
     )
 
@@ -260,12 +336,15 @@ class User(UserMixin, BaseDBClass):
     last_login_ip: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     zhixue_account_id: Mapped[Optional[str]] = mapped_column(
         String(50), ForeignKey("zhixue_student_accounts.id"), nullable=True)
+    manual_school_id: Mapped[Optional[str]] = mapped_column(
+        String(50), ForeignKey("schools.id"), nullable=True)
 
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verification_token: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     email_verification_token_expires: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     zhixue: Mapped[Optional["ZhiXueStudentAccount"]] = relationship("ZhiXueStudentAccount", back_populates="users")
+    manual_school: Mapped[Optional["School"]] = relationship("School", foreign_keys=[manual_school_id])
     background_tasks: Mapped[list["BackgroundTask"]] = relationship("BackgroundTask", back_populates="user")
 
     def set_password(self, password):
@@ -320,9 +399,12 @@ class User(UserMixin, BaseDBClass):
             "permissions": self.permissions,
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
-            "zhixue_username": self.zhixue.username if self.zhixue else None,
-            "zhixue_realname": self.zhixue.realname if self.zhixue else None,
-            "zhixue_school": self.zhixue.school.name if self.zhixue else None,
+            "zhixue_info": {
+                "username": self.zhixue.username if self.zhixue else None,
+                "realname": self.zhixue.realname if self.zhixue else None,
+                "school_name": self.school_name,
+                "school_id": self.school_id,
+            },
         }
 
     def to_dict_all(self):
@@ -337,9 +419,12 @@ class User(UserMixin, BaseDBClass):
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "registration_ip": self.registration_ip,
             "last_login_ip": self.last_login_ip,
-            "zhixue_username": self.zhixue.username if self.zhixue else None,
-            "zhixue_realname": self.zhixue.realname if self.zhixue else None,
-            "zhixue_school": self.zhixue.school.name if self.zhixue else None,
+            "zhixue_info": {
+                "username": self.zhixue.username if self.zhixue else None,
+                "realname": self.zhixue.realname if self.zhixue else None,
+                "school_name": self.school_name,
+                "school_id": self.school_id,
+            },
         }
 
     @property
@@ -361,6 +446,26 @@ class User(UserMixin, BaseDBClass):
         """返回用户的唯一标识符（覆盖 UserMixin 的方法）"""
         return str(self.id)
 
+    @property
+    def school_id(self) -> Optional[str]:
+        """获取用户所属学校 ID
+
+        优先返回智学网账号绑定的学校，否则返回管理员手动分配的学校。
+        """
+        if self.zhixue:
+            return self.zhixue.school_id
+        return self.manual_school_id
+
+    @property
+    def school_name(self) -> Optional[str]:
+        """获取用户所属学校名称
+
+        优先返回智学网账号绑定的学校，否则返回管理员手动分配的学校。
+        """
+        if self.zhixue:
+            return self.zhixue.school.name if self.zhixue.school else None
+        return self.manual_school.name if self.manual_school else None
+
     def has_permission(self, permission_type: PermissionType, required_level: PermissionLevel) -> bool:
         """检查用户是否有指定级别的权限"""
         if self.is_admin:
@@ -374,7 +479,10 @@ class User(UserMixin, BaseDBClass):
         if user_level < required_level.value:
             return False
 
-        if self.zhixue is None and required_level != PermissionLevel.DENIED and required_level != PermissionLevel.GLOBAL:
+        if self.school_id is None and required_level == PermissionLevel.SCHOOL:
+            return False
+
+        if self.zhixue is None and required_level == PermissionLevel.SELF:
             return False
 
         return True

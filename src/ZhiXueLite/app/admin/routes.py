@@ -107,9 +107,8 @@ def list_exams():
         {
             "id": exam.id,
             "name": exam.name,
-            "is_saved": exam.is_saved,
-            "school": exam.school.name,
-            "created_at": exam.created_at
+            "created_at": exam.created_at,
+            "schools": exam.get_schools_saved_status()
         } for exam in paginated_exams["items"]]
 
     return jsonify({
@@ -166,7 +165,7 @@ def update_user(user_id):
     user = db.get_or_404(User, user_id)
     data = request.get_json()
 
-    allowed_fields = ["email", "is_active", "permissions"]
+    allowed_fields = ["email", "is_active", "permissions", "manual_school_id"]
 
     for field in allowed_fields:
         if field in data:
@@ -177,6 +176,15 @@ def update_user(user_id):
             if field == "permissions":
                 if not isinstance(data[field], str) or len(data[field]) != 5 or not all(c in "0123" for c in data[field]):
                     return jsonify({"success": False, "message": "权限格式无效"}), 400
+            if field == "manual_school_id":
+                # 验证：已绑定智学网账号的用户不能手动分配学校
+                if user.zhixue_account_id is not None:
+                    return jsonify({"success": False, "message": "该用户已绑定智学网账号，无法手动分配学校"}), 400
+                # 验证学校存在性（如果不是清空操作）
+                if data[field] is not None:
+                    school = db.session.get(School, data[field])
+                    if not school:
+                        return jsonify({"success": False, "message": "学校不存在"}), 404
             setattr(user, field, data[field])
 
     if "password" in data:
