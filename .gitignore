@@ -10,3 +10,4 @@ geetest-solver
 logs
 cache
 CLAUDE.md
+.coverage
