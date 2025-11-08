@@ -54,7 +54,6 @@ def test_user_is_admin_property(db):
     """
     测试 is_admin 属性
     """
-    # TODO(human): 创建两个用户，一个 role="admin"，一个 role="user"
     admin_user = User(
         username="adminuser",
         email="admin@example.com",

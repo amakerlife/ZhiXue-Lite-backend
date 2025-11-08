@@ -64,6 +64,8 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED = False
     # 测试环境使用 filesystem 会话，conftest.py 会自动清理
     SESSION_TYPE = "filesystem"
+    # 禁用速率限制
+    RATELIMIT_ENABLED = False
 
 
 config_mapping = {

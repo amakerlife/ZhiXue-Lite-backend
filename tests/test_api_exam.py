@@ -35,8 +35,8 @@ def zhixue_account(db, school):
 
 
 @pytest.fixture
-def test_user(db, zhixue_account):
-    """创建有智学网账号的测试用户"""
+def user_with_zhixue(db, zhixue_account):
+    """创建绑定了智学网账号的测试用户"""
     user = User(
         username="testuser",
         email="test@example.com",
@@ -44,6 +44,7 @@ def test_user(db, zhixue_account):
         permissions="10110",
         created_at=datetime.utcnow(),
         email_verified=True,
+        is_active=True,
         zhixue_account_id=zhixue_account.id
     )
     user.set_password("password123")
@@ -153,7 +154,7 @@ def test_exam_list_requires_permission(client, db):
     assert response.status_code == 403
 
 
-def test_exam_list_self_scope_default(client, test_user, sample_exams):
+def test_exam_list_self_scope_default(client, user_with_zhixue, sample_exams):
     """
     测试默认的 self scope 考试列表
 
@@ -170,7 +171,7 @@ def test_exam_list_self_scope_default(client, test_user, sample_exams):
     assert data["pagination"]["pages"] == 1
 
 
-def test_exam_list_pagination(client, test_user, sample_exams):
+def test_exam_list_pagination(client, user_with_zhixue, sample_exams):
     """
     测试分页功能
 
@@ -191,7 +192,7 @@ def test_exam_list_pagination(client, test_user, sample_exams):
     assert data["pagination"]["has_next"] is True
 
 
-def test_exam_list_search_query(client, test_user, sample_exams, db):
+def test_exam_list_search_query(client, user_with_zhixue, sample_exams, db):
     """
     测试搜索功能
     """
@@ -208,8 +209,6 @@ def test_exam_list_search_query(client, test_user, sample_exams, db):
     assert data["exams"][0]["name"] == "期末重要考试"
 
 
-# ===== 下面是一些更高级的测试，我们稍后一起完成 =====
-
 @pytest.mark.parametrize("page,per_page,expected_items,expected_pages,has_prev,has_next", [
     (1, 2, 2, 3, False, True),   # 第一页：2 条数据，共 3 页，无上一页，有下一页
     (2, 2, 2, 3, True, True),    # 第二页：2 条数据，共 3 页，有上一页，有下一页
@@ -217,7 +216,7 @@ def test_exam_list_search_query(client, test_user, sample_exams, db):
     (1, 10, 5, 1, False, False), # 单页：5 条数据，共 1 页，无上一页，无下一页
 ])
 def test_exam_list_pagination_scenarios(
-    client, test_user, sample_exams,
+    client, user_with_zhixue, sample_exams,
     page, per_page, expected_items, expected_pages, has_prev, has_next
 ):
     """
@@ -264,5 +263,5 @@ def test_exam_list_school_scope(client, db, school, sample_exams):
     data = response.get_json()
 
     # school scope 应该返回该学校的所有考试（通过 ExamSchool 关联的）
-    # 在 sample_exams 中，我们只为前 5 个考试创建了 ExamSchool 关联
+    # 在 sample_exams 中，只为前 5 个考试创建了 ExamSchool 关联
     assert len(data["exams"]) == 5

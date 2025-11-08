@@ -11,3 +11,4 @@ logs
 cache
 CLAUDE.md
 .coverage
+flask-session
