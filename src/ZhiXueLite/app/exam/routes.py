@@ -138,15 +138,13 @@ def get_exam_list():
     paginated_exams = paginated_json(exams, page, per_page)
     exam_list = []
     for item in paginated_exams["items"]:
-        is_saved = item.is_saved_for_school(school_id if school_id else current_user.school_id)
-        if scope == "all" and school_id == "":
-            is_saved = item.get_schools_saved_status()
+        schools = item.get_schools_saved_status()
 
         exam_list.append({
             "id": item.id,
             "name": item.name,
             "created_at": item.created_at,
-            "is_saved": is_saved
+            "schools": schools
         })
 
     return jsonify({
