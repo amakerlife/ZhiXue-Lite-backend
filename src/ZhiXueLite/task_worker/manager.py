@@ -117,20 +117,42 @@ class TaskManager:
                 )
                 session.commit()
 
-    def stop_task(self, task_uuid: str) -> bool:
-        """停止指定的任务"""
-        process = self.running_processes.get(task_uuid)
-        if process and process.poll() is None:  # 进程还在运行
+    def _terminate_process(self, process: subprocess.Popen, task_uuid: str) -> bool:
+        """终止指定的进程
+
+        Args:
+            process: 要终止的进程
+            task_uuid: 任务UUID，用于日志记录
+
+        Returns:
+            bool: 是否成功终止进程
+        """
+        if process.poll() is None:  # 进程还在运行
             try:
+                logger.info(f"Terminating process for task: {task_uuid}")
                 process.terminate()
                 # 给进程一些时间优雅退出
                 try:
                     process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     # 如果还没退出，强制杀死
+                    logger.warning(f"Process for task {task_uuid} did not terminate gracefully, killing...")
                     process.kill()
                     process.wait()
+                logger.info(f"Successfully terminated process for task: {task_uuid}")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to terminate process for task {task_uuid}: {e}")
+                return False
+        else:
+            logger.debug(f"Process for task {task_uuid} is already terminated")
+        return False
 
+    def stop_task(self, task_uuid: str) -> bool:
+        """停止指定的任务"""
+        process = self.running_processes.get(task_uuid)
+        if process:
+            if self._terminate_process(process, task_uuid):
                 # 更新任务状态
                 with get_session() as session:
                     update_task_status(
@@ -144,10 +166,12 @@ class TaskManager:
                 self.running_processes.pop(task_uuid, None)
                 logger.info(f"Task stopped: {task_uuid}")
                 return True
-            except Exception as e:
-                logger.error(f"Failed to stop task {task_uuid}: {e}")
+            else:
+                logger.error(f"Failed to terminate process for task {task_uuid}")
                 return False
-        return False
+        else:
+            logger.warning(f"No running process found for task {task_uuid}")
+            return False
 
     def get_running_tasks(self) -> list[str]:
         """获取当前运行中的任务列表"""
@@ -169,31 +193,27 @@ class TaskManager:
             for task in cancelling_tasks:
                 process = self.running_processes.get(task.uuid)
 
-                if process and process.poll() is None:
-                    logger.info(f"Terminating running task: {task.uuid}")
-                    process.terminate()
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait()
-
-                    with get_session() as session:
-                        update_task_status(
-                            session,
-                            task.uuid,
-                            TaskStatus.FAILED,
-                            error_message="Task was cancelled"
-                        )
-                        session.commit()
-                    self.running_processes.pop(task.uuid, None)
+                if process:
+                    if self._terminate_process(process, task.uuid):
+                        # 更新任务状态为已取消
+                        with get_session() as session:
+                            update_task_status(
+                                session,
+                                task.uuid,
+                                TaskStatus.CANCELLED,
+                                error_message="Task was cancelled"
+                            )
+                            session.commit()
+                        self.running_processes.pop(task.uuid, None)
+                    else:
+                        logger.error(f"Failed to terminate process for cancelling task {task.uuid}")
                 else:
-                    logger.warning(f"Process for task {task.uuid} not found or already terminated. Updating status.")
+                    logger.warning(f"Process for cancelling task {task.uuid} not found or already terminated. Updating status.")
                     with get_session() as session:
                         update_task_status(
                             session,
                             task.uuid,
-                            TaskStatus.FAILED,
+                            TaskStatus.CANCELLED,
                             error_message="Task was cancelled"
                         )
                         session.commit()
@@ -209,7 +229,7 @@ class TaskManager:
 
         while self.is_running:
             try:
-                # self.handle_cancellations()
+                self.handle_cancellations()
 
                 task = get_next_pending_task()
                 if task:

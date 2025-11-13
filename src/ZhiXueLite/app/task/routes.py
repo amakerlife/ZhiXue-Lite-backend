@@ -79,8 +79,8 @@ def cancel_task(task_uuid):
         task_repo.update_task_status(task_uuid, TaskStatus.CANCELLED, error_message="用户取消")
         return jsonify({"success": True, "message": "任务已取消"}), 200
 
-    # if task.status == TaskStatus.PROCESSING.value:
-    #     task_repo.update_task_status(task_uuid, TaskStatus.CANCELLING, error_message="用户请求取消")
-    #     return jsonify({"success": True, "message": "已发送取消请求，请稍后刷新"}), 200
+    if task.status == TaskStatus.PROCESSING.value:
+        task_repo.update_task_status(task_uuid, TaskStatus.CANCELLING, error_message="用户请求取消")
+        return jsonify({"success": True, "message": "已发送取消请求，请稍后刷新"}), 200
 
     return jsonify({"success": False, "message": "当前任务不支持取消"}), 400

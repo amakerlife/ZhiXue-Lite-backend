@@ -52,9 +52,26 @@ class ProductionConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ["PROD_DATABASE_URL"]
 
 
+class TestingConfig(Config):
+    """测试环境配置"""
+    TESTING = True
+    DEBUG = True
+    SECRET_KEY = os.environ.get("SECRET_KEY", "test-secret-key")
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
+    # SQLite 不支持连接池配置，使用空字典覆盖
+    SQLALCHEMY_ENGINE_OPTIONS = {}
+    # 禁用某些在测试中不需要的功能
+    WTF_CSRF_ENABLED = False
+    # 测试环境使用 filesystem 会话，conftest.py 会自动清理
+    SESSION_TYPE = "filesystem"
+    # 禁用速率限制
+    RATELIMIT_ENABLED = False
+
+
 config_mapping = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
+    "testing": TestingConfig,
     "default": ProductionConfig
 }
 

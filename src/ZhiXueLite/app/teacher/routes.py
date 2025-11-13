@@ -28,10 +28,10 @@ def get_teacher_list():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(ZhiXueTeacherAccount)
+    stmt = select(ZhiXueTeacherAccount).join(School)
     if query:
         stmt = stmt.where(ZhiXueTeacherAccount.username.contains(query) |
-                          ZhiXueTeacherAccount.school.name.contains(query))
+                          School.name.contains(query))
 
     teachers = db.session.scalars(stmt).all()
 
