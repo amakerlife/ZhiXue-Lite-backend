@@ -262,16 +262,22 @@ class TestExtendedTeacherAccount:
         from app.models.dataclasses import Score
 
         student1 = StudentScoreInfo("张三", "stu_001", "001", "100001", "标签1", "一班", "180", "1", "1")
-        student1.scores.append(Score(name="语文", score="95", classrank="", schoolrank="", subjectcode=1, topicsetid="topic_001", standard_score="95", sort=1))
-        student1.scores.append(Score(name="数学", score="85", classrank="", schoolrank="", subjectcode=2, topicsetid="topic_002", standard_score="85", sort=2))
+        student1.scores.append(Score(name="语文", score="95", classrank="", schoolrank="",
+                               subjectcode=1, topicsetid="topic_001", standard_score="95", sort=1))
+        student1.scores.append(Score(name="数学", score="85", classrank="", schoolrank="",
+                               subjectcode=2, topicsetid="topic_002", standard_score="85", sort=2))
 
         student2 = StudentScoreInfo("李四", "stu_002", "002", "100002", "标签2", "一班", "170", "2", "2")
-        student2.scores.append(Score(name="语文", score="88", classrank="", schoolrank="", subjectcode=1, topicsetid="topic_001", standard_score="88", sort=1))
-        student2.scores.append(Score(name="数学", score="82", classrank="", schoolrank="", subjectcode=2, topicsetid="topic_002", standard_score="82", sort=2))
+        student2.scores.append(Score(name="语文", score="88", classrank="", schoolrank="",
+                               subjectcode=1, topicsetid="topic_001", standard_score="88", sort=1))
+        student2.scores.append(Score(name="数学", score="82", classrank="", schoolrank="",
+                               subjectcode=2, topicsetid="topic_002", standard_score="82", sort=2))
 
         student3 = StudentScoreInfo("王五", "stu_003", "003", "100003", "标签3", "二班", "190", "1", "1")
-        student3.scores.append(Score(name="语文", score="98", classrank="", schoolrank="", subjectcode=1, topicsetid="topic_001", standard_score="98", sort=1))
-        student3.scores.append(Score(name="数学", score="92", classrank="", schoolrank="", subjectcode=2, topicsetid="topic_002", standard_score="92", sort=2))
+        student3.scores.append(Score(name="语文", score="98", classrank="", schoolrank="",
+                               subjectcode=1, topicsetid="topic_001", standard_score="98", sort=1))
+        student3.scores.append(Score(name="数学", score="92", classrank="", schoolrank="",
+                               subjectcode=2, topicsetid="topic_002", standard_score="92", sort=2))
 
         students = [student1, student2, student3]
 
@@ -457,6 +463,8 @@ class TestLoginTeacherSession:
         mock_db.session.get.return_value = mock_db_account
 
         result = login_teacher_session("old_cookie_string")
+
+        assert result == mock_account_instance
 
         # 验证更新了数据库中的 cookie
         assert mock_db_account.cookie == "new_teacher_cookie"

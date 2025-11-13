@@ -8,10 +8,9 @@ get_teacher() 辅助函数测试
 - 学校没有教师账号的错误处理
 """
 import pytest
-from app.database.models import Exam, ExamSchool, School, ZhiXueTeacherAccount
+from app.database.models import Exam, ExamSchool, School
 from app.exam.routes import get_teacher
 from app.models.exceptions import FailedToGetTeacherAccountError
-from datetime import datetime
 import time
 
 

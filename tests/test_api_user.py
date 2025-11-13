@@ -212,6 +212,7 @@ def test_update_user_info_invalid_field(db, client, regular_user):
         "permission": "33333"
     })
 
+    assert response.status_code == 200
     user = db.session.query(User).filter_by(username="testuser").first()
     assert user.permissions == "10110"
 

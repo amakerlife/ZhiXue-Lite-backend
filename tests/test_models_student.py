@@ -159,6 +159,8 @@ class TestLoginStudentSession:
 
         result = login_student_session("old_cookie_string")
 
+        assert result == mock_account_instance
+
         # 验证更新了数据库中的 cookie
         assert mock_db_account.cookie == "new_cookie_value"
         mock_db.session.commit.assert_called_once()
