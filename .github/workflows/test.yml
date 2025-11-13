@@ -6,16 +6,10 @@ on:
       - main
       - dev
       - '**'
-    paths:
-      - 'ZhiXue-Lite-backend/**'
-      - '.github/workflows/test.yml'
   pull_request:
     branches:
       - main
       - dev
-    paths:
-      - 'ZhiXue-Lite-backend/**'
-      - '.github/workflows/test.yml'
   workflow_dispatch:
 
 jobs:
@@ -50,16 +44,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: 'ZhiXue-Lite-backend/pyproject.toml'
+          cache-dependency-path: 'pyproject.toml'
 
       - name: Install dependencies
-        working-directory: ZhiXue-Lite-backend
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test]"
 
       - name: Set up environment variables
-        working-directory: ZhiXue-Lite-backend
         run: |
           echo "DATABASE_URL=postgresql://zhixue_test:test_password@localhost:5432/zhixue_test" >> $GITHUB_ENV
           echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
@@ -67,7 +59,6 @@ jobs:
           echo "TURNSTILE_ENABLED=false" >> $GITHUB_ENV
 
       - name: Run database migrations
-        working-directory: ZhiXue-Lite-backend
         run: |
           # 初始化数据库迁移（如果需要）
           if [ ! -d "migrations" ]; then
@@ -78,14 +69,13 @@ jobs:
         continue-on-error: true  # 如果没有迁移文件，继续执行
 
       - name: Run tests with coverage
-        working-directory: ZhiXue-Lite-backend
         run: |
           pytest -v --cov=src/ZhiXueLite --cov-report=xml --cov-report=term-missing
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
-          file: ./ZhiXue-Lite-backend/coverage.xml
+          file: ./coverage.xml
           flags: backend
           name: backend-coverage
           fail_ci_if_error: false
@@ -95,7 +85,6 @@ jobs:
 
       - name: Generate coverage summary
         if: always()
-        working-directory: ZhiXue-Lite-backend
         run: |
           if [ -f "coverage.xml" ]; then
             echo "## Test Coverage Summary" >> $GITHUB_STEP_SUMMARY
@@ -108,5 +97,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report-py${{ matrix.python-version }}
-          path: ZhiXue-Lite-backend/htmlcov/
+          path: htmlcov/
           retention-days: 7
