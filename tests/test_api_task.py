@@ -7,6 +7,7 @@ Task API 测试
 - POST /task/cancel/<uuid> - 取消任务
 """
 from datetime import datetime
+import uuid
 import pytest
 from app.database.models import User, BackgroundTask, TaskStatus
 
@@ -112,7 +113,8 @@ def test_get_task_status_not_found(client, regular_user):
     """测试获取不存在的任务"""
     login_user(client)
 
-    response = client.get("/task/status/invalid-uuid")
+    non_existent_uuid = str(uuid.uuid4())
+    response = client.get(f"/task/status/{non_existent_uuid}")
     assert response.status_code == 404
     data = response.get_json()
     assert data["success"] is False
@@ -237,7 +239,8 @@ def test_cancel_task_not_found(client, regular_user):
     """测试取消不存在的任务"""
     login_user(client)
 
-    response = client.post("/task/cancel/invalid-uuid")
+    non_existent_uuid = str(uuid.uuid4())
+    response = client.post(f"/task/cancel/{non_existent_uuid}")
 
     assert response.status_code == 404
     data = response.get_json()
@@ -250,7 +253,7 @@ def test_cancel_task_other_user(client, regular_user, other_user, sample_tasks):
     login_user(client, "otheruser", "password123")
 
     response = client.post(f"/task/cancel/{sample_tasks[0].uuid}")
-    
+
     assert response.status_code == 404
     data = response.get_json()
     assert data["success"] is False
