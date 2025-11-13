@@ -302,6 +302,143 @@ def test_exam_list_school_scope(client, db, school, sample_exams):
     assert len(data["exams"]) == 5
 
 
+def test_exam_list_global_scope_all_exams(client, db, school, sample_exams):
+    """测试 GLOBAL 权限使用 scope=all 查看所有考试"""
+    # 创建 GLOBAL 权限用户（需要关联学校才能通过基础检查）
+    user = User(
+        username="globaluser",
+        email="global@example.com",
+        role="user",
+        permissions="33333",  # 所有 GLOBAL 级权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=school.id  # GLOBAL 用户也需要基础身份关联
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="globaluser", password="password123")
+
+    response = client.get("/exam/list?scope=all&per_page=20")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    # scope=all 应该返回所有考试（15 个）
+    assert data["success"] is True
+    assert len(data["exams"]) == 15
+    assert data["pagination"]["total"] == 15
+
+
+def test_exam_list_global_scope_filter_by_school(client, db, school, sample_exams):
+    """测试 GLOBAL 权限使用 scope=all 并按学校过滤"""
+    # 创建 GLOBAL 权限用户
+    user = User(
+        username="globaluser",
+        email="global@example.com",
+        role="user",
+        permissions="33333",
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=school.id  # 需要基础身份关联
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="globaluser", password="password123")
+
+    response = client.get(f"/exam/list?scope=all&school_id={school.id}")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    # 只返回该学校的考试（5 个，在 sample_exams 中创建了 ExamSchool）
+    assert data["success"] is True
+    assert len(data["exams"]) == 5
+
+
+def test_exam_list_time_filter_valid(client, user_with_zhixue, sample_exams):
+    """测试使用有效的时间范围过滤"""
+    login_user(client)
+
+    # 使用时间戳过滤
+    start = int(time.time() * 1000)  # 当前时间
+    end = start + 100000  # 未来时间
+
+    response = client.get(f"/exam/list?start_time={start}&end_time={end}")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+
+
+def test_exam_list_time_filter_invalid_only_start(client, user_with_zhixue, sample_exams):
+    """测试只提供 start_time（不合法）"""
+    login_user(client)
+
+    start = int(time.time() * 1000)
+
+    response = client.get(f"/exam/list?start_time={start}&end_time=0")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["success"] is False
+    assert "参数不合法" in data["message"]
+
+
+def test_exam_list_time_filter_invalid_only_end(client, user_with_zhixue, sample_exams):
+    """测试只提供 end_time（不合法）"""
+    login_user(client)
+
+    end = int(time.time() * 1000)
+
+    response = client.get(f"/exam/list?start_time=0&end_time={end}")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["success"] is False
+    assert "参数不合法" in data["message"]
+
+
+def test_exam_list_invalid_scope(client, user_with_zhixue, sample_exams):
+    """测试使用不合法的 scope 参数"""
+    login_user(client)
+
+    response = client.get("/exam/list?scope=invalid_scope")
+
+    # 不合法的 scope 会先被权限检查拦截（403），而不是参数验证（400）
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
+
+
+def test_exam_list_school_scope_requires_school_id(client, db, sample_exams):
+    """测试 SCHOOL 权限但没有 school_id 会被装饰器拦截"""
+    # 创建一个 SCHOOL 权限用户，但不分配 manual_school_id
+    user = User(
+        username="schooluser_no_school",
+        email="schooluser_no_school@example.com",
+        role="user",
+        permissions="22222",  # SCHOOL 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=None,  # 没有学校
+        zhixue_account_id=None  # 也没有智学网账号
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="schooluser_no_school", password="password123")
+
+    response = client.get("/exam/list?scope=school")
+
+    # 没有 school_id 的用户会在装饰器层被拦截（403），而不是进入路由验证（401）
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
+
+
 # fetch-list-params 测试
 
 
@@ -372,6 +509,115 @@ def test_fetch_list_params_no_teacher_account(mock_get_teacher, client, school_a
     data = response.get_json()
     assert data["success"] is False
     assert "该学校暂无可用教师账号" in data["message"]
+
+
+@patch("app.exam.routes.login_teacher_session")
+@patch("app.exam.routes.get_teacher")
+def test_fetch_list_params_global_permission_other_school(
+    mock_get_teacher, mock_login_teacher, client, db, school, teacher_account
+):
+    """测试 GLOBAL 权限用户查询其他学校的参数"""
+    # 创建一个 GLOBAL 权限用户（需要基础身份关联）
+    user = User(
+        username="globaluser",
+        email="global@example.com",
+        role="user",
+        permissions="33333",  # 所有 GLOBAL 级权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=school.id  # 需要基础身份关联
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    # 创建另一个学校
+    other_school = School(id="other_school_001", name="其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    mock_get_teacher.return_value = teacher_account
+    mock_teacher_session = Mock()
+    mock_teacher_session.get_exam_list_selections.return_value = {"academicYear": []}
+    mock_login_teacher.return_value = mock_teacher_session
+
+    login_user(client, username="globaluser", password="password123")
+
+    # GLOBAL 权限可以查询任何学校
+    response = client.get(f"/exam/fetch-list-params?school_id={other_school.id}")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+
+
+@patch("app.exam.routes.login_teacher_session")
+@patch("app.exam.routes.get_teacher")
+def test_fetch_list_params_school_permission_other_school_denied(
+    mock_get_teacher, mock_login_teacher, client, db, teacher_account
+):
+    """测试 SCHOOL 权限用户查询其他学校的参数被拒绝"""
+    # 创建用户所属的学校
+    user_school = School(id="user_school_001", name="用户学校")
+    db.session.add(user_school)
+    db.session.commit()
+
+    # 创建一个 SCHOOL 权限用户
+    user = User(
+        username="schooluser",
+        email="schooluser@example.com",
+        role="user",
+        permissions="22222",  # 所有 SCHOOL 级权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=user_school.id
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    # 创建另一个学校
+    other_school = School(id="other_school_002", name="其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    login_user(client, username="schooluser", password="password123")
+
+    # SCHOOL 权限无法查询其他学校
+    response = client.get(f"/exam/fetch-list-params?school_id={other_school.id}")
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
+    assert "无权访问该考试数据" in data["message"]
+
+
+def test_fetch_list_params_no_school_id_param_error(client, db):
+    """测试未提供 school_id 且用户也没有关联学校会被装饰器拦截"""
+    # 创建 SCHOOL 权限用户，但没有关联学校
+    user = User(
+        username="schooluser_no_school",
+        email="schooluser_no_school@example.com",
+        role="user",
+        permissions="22222",  # SCHOOL 级权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=None,
+        zhixue_account_id=None
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="schooluser_no_school", password="password123")
+
+    response = client.get("/exam/fetch-list-params")
+
+    # 装饰器 @permission_required(FETCH_DATA, "school") 会检查 school_id
+    # 没有 school_id 返回 403，不会进入路由内部参数验证（400）
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
 
 
 # list/fetch 测试
@@ -479,6 +725,116 @@ def test_fetch_exam_list_requires_permission(client, db):
     login_user(client, username="nofetch", password="password123")
     response = client.post("/exam/list/fetch", json={})
     assert response.status_code == 403
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_list_school_no_school_id_param_error(mock_create_task, client, db):
+    """测试 query_type=school 但用户没有关联学校会被装饰器拦截"""
+    # 创建 SCHOOL 权限用户，但没有关联学校
+    user = User(
+        username="schooluser_no_school",
+        email="schooluser_no_school@example.com",
+        role="user",
+        permissions="22222",  # SCHOOL 级权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=None,
+        zhixue_account_id=None
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="schooluser_no_school", password="password123")
+
+    response = client.post("/exam/list/fetch?query_type=school", json={"params": {}})
+
+    # 装饰器 @permission_required(FETCH_DATA, "self") 会检查 zhixue 或 manual_school
+    # 两者都没有时返回 403，不会进入路由内部参数验证（400）
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_list_school_global_permission_other_school(mock_create_task, client, db, school):
+    """测试 GLOBAL 权限用户拉取其他学校考试列表"""
+    # 创建 GLOBAL 权限用户（需要基础身份关联）
+    user = User(
+        username="globaluser",
+        email="global@example.com",
+        role="user",
+        permissions="33333",  # 所有 GLOBAL 级权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=school.id  # 需要基础身份关联
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    # 创建另一个学校
+    other_school = School(id="other_school_003", name="其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    mock_task = Mock()
+    mock_task.uuid = "task-global-123"
+    mock_create_task.return_value = mock_task
+
+    login_user(client, username="globaluser", password="password123")
+
+    # GLOBAL 权限可以拉取任何学校的考试列表
+    response = client.post(
+        f"/exam/list/fetch?query_type=school&school_id={other_school.id}",
+        json={"params": {}}
+    )
+
+    assert response.status_code == 202
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["task_id"] == "task-global-123"
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_list_school_school_permission_other_school_denied(mock_create_task, client, db):
+    """测试 SCHOOL 权限用户拉取其他学校考试列表被拒绝"""
+    # 创建用户所属的学校
+    user_school = School(id="user_school_002", name="用户学校")
+    db.session.add(user_school)
+    db.session.commit()
+
+    # 创建 SCHOOL 权限用户
+    user = User(
+        username="schooluser",
+        email="schooluser@example.com",
+        role="user",
+        permissions="22222",  # SCHOOL 级权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=user_school.id
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    # 创建另一个学校
+    other_school = School(id="other_school_004", name="其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    login_user(client, username="schooluser", password="password123")
+
+    # SCHOOL 权限无法拉取其他学校的考试列表
+    response = client.post(
+        f"/exam/list/fetch?query_type=school&school_id={other_school.id}",
+        json={"params": {}}
+    )
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
+    assert "无权访问该考试数据" in data["message"]
 
 
 # /<exam_id> 测试
@@ -1255,3 +1611,387 @@ def test_answersheet_exam_not_found(client, user_with_zhixue):
     response = client.get("/exam/non_existent/subject/subject_001/answersheet")
 
     assert response.status_code == 404
+
+
+# 补充测试：force_refresh、scoresheet、answersheet 边界场景
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_details_self_no_zhixue(mock_create_task, client, db, sample_exams):
+    """测试 SELF 权限用户没有智学网账号无法拉取"""
+    user = User(
+        username="nozhixue",
+        email="nozhixue@example.com",
+        role="user",
+        permissions="10110",  # SELF 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        zhixue_account_id=None
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="nozhixue", password="password123")
+
+    response = client.post(f"/exam/exam_001/fetch", json={})
+
+    assert response.status_code == 403  # 装饰器会拦截 SELF 权限但没有账号的用户
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_details_force_refresh_no_permission(mock_create_task, client, user_with_zhixue, sample_exams):
+    """测试强制刷新但没有 REFETCH_EXAM_DATA 权限"""
+    # user_with_zhixue 默认权限 "10110" 没有 REFETCH_EXAM_DATA (位置 1)
+    login_user(client)
+
+    response = client.post(f"/exam/exam_001/fetch?force_refresh=true", json={})
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert "Access Denied" in data["message"]
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_details_force_refresh_with_permission(mock_create_task, client, db, sample_exams):
+    """测试有 REFETCH_EXAM_DATA 权限可以强制刷新"""
+    mock_task = Mock()
+    mock_task.uuid = "task-force-123"
+    mock_create_task.return_value = mock_task
+
+    # 修改用户权限添加 REFETCH_EXAM_DATA (11110)
+    user = User(
+        username="refetch_user",
+        email="refetch@example.com",
+        role="user",
+        permissions="11110",  # 添加 REFETCH_EXAM_DATA SELF 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        zhixue_account_id="zx_refetch"
+    )
+    user.set_password("password123")
+
+    # 创建智学网账号
+    zhixue = ZhiXueStudentAccount(
+        id="zx_refetch",
+        username="refetch_zx",
+        password="pass",
+        realname="用户",
+        cookie="cookie",
+        school_id="school_001"
+    )
+    db.session.add_all([user, zhixue])
+
+    # 创建 UserExam 关联
+    user_exam = UserExam(zhixue_id="zx_refetch", exam_id="exam_001")
+    db.session.add(user_exam)
+    db.session.commit()
+
+    login_user(client, username="refetch_user", password="password123")
+
+    response = client.post(f"/exam/exam_001/fetch?force_refresh=true", json={})
+
+    assert response.status_code == 202
+    data = response.get_json()
+    assert data["success"] is True
+
+    # 验证参数中包含 force_refresh
+    call_kwargs = mock_create_task.call_args[1]
+    assert call_kwargs["parameters"]["force_refresh"] is True
+
+
+# scoresheet 边界场景测试
+
+
+def test_export_scoresheet_school_scope_no_school_id(client, db, exam_with_scores, school):
+    """测试导出成绩单但用户没有 school_id（装饰器拦截）"""
+    # 创建没有 school_id 的用户
+    user = User(
+        username="no_school_user",
+        email="noschool@example.com",
+        role="user",
+        permissions="10111",  # 有 EXPORT_SCORE_SHEET SELF 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=None,
+        zhixue_account_id=None
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="no_school_user", password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/scoresheet?scope=school")
+
+    # 没有 school_id 和 zhixue 的用户会在装饰器层被拦截（403）
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False
+
+
+def test_export_scoresheet_exam_not_saved(client, db, admin_user, school):
+    """测试导出未保存的考试成绩单"""
+    # 创建未保存的考试
+    exam = Exam(
+        id="exam_not_saved",
+        name="未保存考试",
+        created_at=int(time.time() * 1000)
+    )
+    db.session.add(exam)
+    db.session.commit()
+
+    # 创建 ExamSchool 但 is_saved=False
+    exam_school = ExamSchool(exam_id=exam.id, school_id=school.id, is_saved=False)
+    db.session.add(exam_school)
+    db.session.commit()
+
+    login_user(client, username="admin", password="adminpass")
+
+    response = client.get(f"/exam/{exam.id}/scoresheet?school_id={school.id}")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "考试数据尚未保存" in data["message"]
+
+
+def test_export_scoresheet_school_not_in_exam(client, admin_user, exam_with_scores, db):
+    """测试导出学校不在考试中的成绩单"""
+    # 创建另一个学校
+    other_school = School(id="other_school_export", name="��他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    login_user(client, username="admin", password="adminpass")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/scoresheet?school_id={other_school.id}")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "该学校未参与此次考试" in data["message"]
+
+
+def test_export_scoresheet_self_permission_scope_all_denied(client, db, exam_with_scores):
+    """测试 SELF 权限用户无法使用 scope=all"""
+    user = User(
+        username="selfuser",
+        email="self@example.com",
+        role="user",
+        permissions="10111",  # SELF 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        zhixue_account_id="zx_self",
+        manual_school_id="school_001"
+    )
+    user.set_password("password123")
+
+    zhixue = ZhiXueStudentAccount(
+        id="zx_self",
+        username="self_zx",
+        password="pass",
+        realname="用户",
+        cookie="cookie",
+        school_id="school_001"
+    )
+    db.session.add_all([user, zhixue])
+
+    # 添加 UserExam 关联
+    user_exam = UserExam(zhixue_id="zx_self", exam_id=exam_with_scores.id)
+    db.session.add(user_exam)
+    db.session.commit()
+
+    login_user(client, username="selfuser", password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/scoresheet?scope=all")
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert "无权访问该考试" in data["message"]
+
+
+# answersheet 边界场景测试
+
+
+def test_answersheet_both_id_and_name_error(client, user_with_zhixue, exam_with_scores):
+    """测试同时指定 student_id 和 student_name 返回错误"""
+    login_user(client)
+
+    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_id=stu_001&student_name=张三")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "不可同时指定" in data["message"]
+
+
+def test_answersheet_name_without_school_id(client, user_with_zhixue, exam_with_scores):
+    """测试使用 student_name 但不指定 school_id"""
+    login_user(client)
+
+    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_name=张三")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "必须指定学校 ID" in data["message"]
+
+
+def test_answersheet_multi_school_exam_no_school_id(client, user_with_zhixue, db):
+    """测试联考必须指定 school_id"""
+    # 创建两个学校
+    school1 = School(id="school_ms_1", name="学校1")
+    school2 = School(id="school_ms_2", name="学校2")
+    db.session.add_all([school1, school2])
+
+    # 创建联考
+    exam = Exam(
+        id="exam_multi_answersheet",
+        name="联考",
+        created_at=int(time.time() * 1000)
+    )
+    db.session.add(exam)
+    db.session.commit()
+
+    # 关联两个学校
+    exam_school1 = ExamSchool(exam_id=exam.id, school_id=school1.id, is_saved=True)
+    exam_school2 = ExamSchool(exam_id=exam.id, school_id=school2.id, is_saved=True)
+    db.session.add_all([exam_school1, exam_school2])
+
+    # 添加 UserExam
+    user_exam = UserExam(zhixue_id=user_with_zhixue.zhixue_account_id, exam_id=exam.id)
+    db.session.add(user_exam)
+    db.session.commit()
+
+    login_user(client)
+
+    response = client.get(f"/exam/{exam.id}/subject/subject_001/answersheet")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert "该考试为联考，必须指定学校 ID" in data["message"]
+
+
+def test_answersheet_self_permission_other_student_denied(client, user_with_zhixue, exam_with_scores):
+    """测试 SELF 权限用户无法查看其他学生答题卡"""
+    login_user(client)
+
+    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_id=other_student")
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert "只能查看自己的成绩" in data["message"]
+
+
+def test_answersheet_self_permission_cannot_use_name(client, user_with_zhixue, exam_with_scores, school):
+    """测试 SELF 权限用户无法使用学生姓名查询"""
+    login_user(client)
+
+    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_name=张三&school_id={school.id}")
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert "无权使用学生姓名查询成绩" in data["message"]
+
+
+# get_exam_score 边界场景测试
+
+
+def test_get_exam_score_school_permission_denied(client, db, exam_with_scores):
+    """测试 SCHOOL 权限用户访问其他学校考试成绩被拒绝"""
+    # 创建另一个学校
+    other_school = School(id="school_score_002", name="其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    # 创建 SCHOOL 权限用户
+    user = User(
+        username="schooluser_score",
+        email="schoolscore@example.com",
+        role="user",
+        permissions="22222",  # SCHOOL 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=other_school.id
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="schooluser_score", password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/score")
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert "无权访问该考试" in data["message"]
+
+
+def test_get_exam_score_self_no_user_exam(client, db, exam_with_scores):
+    """测试 SELF 权限用户访问没有 UserExam 记录的考试"""
+    # 创建用户但不创建 UserExam 关联
+    user = User(
+        username="no_exam_user",
+        email="noexam@example.com",
+        role="user",
+        permissions="11110",  # SELF 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        zhixue_account_id="zx_no_exam",
+        manual_school_id="school_001"
+    )
+    user.set_password("password123")
+
+    zhixue = ZhiXueStudentAccount(
+        id="zx_no_exam",
+        username="no_exam_zx",
+        password="pass",
+        realname="用户",
+        cookie="cookie",
+        school_id="school_001"
+    )
+    db.session.add_all([user, zhixue])
+    db.session.commit()
+
+    login_user(client, username="no_exam_user", password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/score")
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert "无权访问该考试" in data["message"]
+
+
+# get_exam_info 边界场景测试
+
+
+def test_get_exam_info_no_school_returns_empty_list(client, db, admin_user):
+    """测试用户没有 school_id 时返回空学校列表"""
+    # 修改 admin_user 去掉 school_id
+    admin_user.manual_school_id = None
+    db.session.commit()
+
+    # 创建考试
+    exam = Exam(
+        id="exam_no_school_list",
+        name="测试考试",
+        created_at=int(time.time() * 1000)
+    )
+    db.session.add(exam)
+    db.session.commit()
+
+    # 创建学校关联
+    school = School(id="school_test_empty", name="测试学校")
+    db.session.add(school)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam.id, school_id=school.id, is_saved=True)
+    db.session.add(exam_school)
+    db.session.commit()
+
+    login_user(client, username="admin", password="adminpass")
+
+    response = client.get(f"/exam/{exam.id}")
+
+    # GLOBAL 权限应该返回所有学校，不管用户有没有 school_id
+    assert response.status_code == 200
+    data = response.get_json()
+    assert len(data["exam"]["schools"]) == 1  # GLOBAL 权限返回所有学校
+
