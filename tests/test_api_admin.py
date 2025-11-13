@@ -4,7 +4,7 @@ Admin API 测试
 测试管理员相关的 API 端点：用户管理、学校管理、Su 模式等
 """
 from datetime import datetime
-from app.database.models import User, School, ZhiXueStudentAccount, Exam
+from app.database.models import User, School, Exam
 import pytest
 from conftest import login_as_admin, login_as_user
 

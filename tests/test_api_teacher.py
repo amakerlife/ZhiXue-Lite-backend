@@ -4,7 +4,6 @@
 这个文件测试教师账号管理相关的 API 端点：列表、添加、更新、删除等
 """
 from app.database.models import ZhiXueTeacherAccount
-import pytest
 
 
 def test_teacher_list_requires_admin(client, regular_user):
@@ -83,7 +82,7 @@ def test_teacher_list_pagination(client, admin_user, db, test_school):
     data = response.get_json()
     assert data["success"] is True
     assert len(data["teachers"]) == 3
-    assert data["pagination"]["page"] == 1  # 修复：使用 page 而不是 current_page
+    assert data["pagination"]["page"] == 1
     assert data["pagination"]["has_next"] is True
 
     # 测试第二页
@@ -92,7 +91,7 @@ def test_teacher_list_pagination(client, admin_user, db, test_school):
     data = response.get_json()
     assert data["success"] is True
     assert len(data["teachers"]) == 2
-    assert data["pagination"]["page"] == 2  # 修复：使用 page 而不是 current_page
+    assert data["pagination"]["page"] == 2
 
 
 def test_teacher_list_search(client, admin_user, db, test_school):

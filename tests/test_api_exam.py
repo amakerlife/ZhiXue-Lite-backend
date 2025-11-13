@@ -420,9 +420,7 @@ def test_fetch_exam_list_self_requires_zhixue(client, db):
 
     response = client.post("/exam/list/fetch?query_type=self", json={})
 
-    # 调试：查看实际错误
     data = response.get_json()
-    print(f"\nDebug - Status: {response.status_code}, Message: {data.get('message')}")
 
     # 接受 401 或 403（可能被权限装饰器或其他中间件拦截）
     assert response.status_code in [401, 403]
@@ -1257,8 +1255,3 @@ def test_answersheet_exam_not_found(client, user_with_zhixue):
     response = client.get("/exam/non_existent/subject/subject_001/answersheet")
 
     assert response.status_code == 404
-
-
-
-
-

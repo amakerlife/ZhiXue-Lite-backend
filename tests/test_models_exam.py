@@ -2,6 +2,8 @@
 考试模型测试
 """
 import time
+import pytest
+from sqlalchemy.exc import IntegrityError
 from app.database.models import School, Exam, ExamSchool
 
 
@@ -147,9 +149,6 @@ def test_exam_school_unique_constraint(db):
 
     exam_school2 = ExamSchool(exam_id="exam_001", school_id="school_001")
     db.session.add(exam_school2)
-
-    from sqlalchemy.exc import IntegrityError
-    import pytest
 
     with pytest.raises(IntegrityError):
         db.session.commit()

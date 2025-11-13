@@ -6,7 +6,6 @@
 from datetime import datetime
 from unittest.mock import patch
 from app.database.models import User
-import pytest
 
 
 def test_user_login_success(client, regular_user):
@@ -212,6 +211,7 @@ def test_update_user_info_invalid_field(db, client, regular_user):
     response = client.put("/user/me", json={
         "permission": "33333"
     })
+
     user = db.session.query(User).filter_by(username="testuser").first()
     assert user.permissions == "10110"
 

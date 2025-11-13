@@ -1,9 +1,10 @@
 """
 用户模型测试
 """
+import pytest
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime
 from app.database.models import User
-from app.database import db
 
 
 def test_create_user(db):
@@ -100,9 +101,6 @@ def test_user_unique_constraint(db):
     )
     user2.set_password("password2")
     db.session.add(user2)
-
-    from sqlalchemy.exc import IntegrityError
-    import pytest
 
     with pytest.raises(IntegrityError):
         db.session.commit()
