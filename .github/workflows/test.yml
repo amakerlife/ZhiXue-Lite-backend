@@ -57,6 +57,8 @@ jobs:
           echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
           echo "FLASK_ENV=testing" >> $GITHUB_ENV
           echo "TURNSTILE_ENABLED=false" >> $GITHUB_ENV
+          echo "CAPTCHA_URL=http://fake-captcha.test" >> $GITHUB_ENV
+          echo "FONT_PATH=/fake/font/path" >> $GITHUB_ENV
 
       - name: Run database migrations
         run: |
