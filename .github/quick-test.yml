@@ -1,0 +1,62 @@
+name: Quick Test
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'ZhiXue-Lite-backend/**'
+      - '.github/workflows/quick-test.yml'
+  pull_request:
+    paths:
+      - 'ZhiXue-Lite-backend/**'
+      - '.github/workflows/quick-test.yml'
+  workflow_dispatch:
+
+jobs:
+  quick-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: zhixue_test
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: zhixue_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: 'ZhiXue-Lite-backend/pyproject.toml'
+
+      - name: Install dependencies
+        working-directory: ZhiXue-Lite-backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: Set up environment variables
+        run: |
+          echo "DATABASE_URL=postgresql://zhixue_test:test_password@localhost:5432/zhixue_test" >> $GITHUB_ENV
+          echo "SECRET_KEY=test-secret-key-for-ci" >> $GITHUB_ENV
+          echo "FLASK_ENV=testing" >> $GITHUB_ENV
+          echo "TURNSTILE_ENABLED=false" >> $GITHUB_ENV
+
+      - name: Run tests
+        working-directory: ZhiXue-Lite-backend
+        run: |
+          pytest -v --tb=short

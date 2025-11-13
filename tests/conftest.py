@@ -7,7 +7,11 @@ import pytest
 
 # 在导入 app 之前设置测试环境变量，防止加载生产配置
 os.environ["FLASK_ENV"] = "testing"
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
+# 使用环境变量中的 DATABASE_URL（CI 环境），否则使用 SQLite 内存数据库（本地开发）
+if "DATABASE_URL" not in os.environ:
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+
 os.environ["TURNSTILE_ENABLED"] = "False"
 os.environ["CAPTCHA_URL"] = "http://fake-captcha.test"
 os.environ["FONT_PATH"] = "/fake/font/path"
