@@ -32,6 +32,10 @@ limiter = Limiter(
 def create_app():
     app = Flask("ZhiXueLite-backend")
     app.config.from_object(config)
+
+    # 验证当前配置所需的环境变量
+    config.validate()
+
     app.wsgi_app = ProxyFix(
         app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
     )
