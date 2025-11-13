@@ -399,7 +399,7 @@ def test_zhixue_binding_info_not_bound(client, regular_user):
     assert "未绑定" in data["message"]
 
 
-# ========== 邮件验证功能测试 ==========
+# 邮件验证功能测试
 
 
 @patch("app.user.routes.is_email_verification_enabled")
@@ -407,16 +407,13 @@ def test_email_verify_success(mock_is_enabled, client, unverified_user, db):
     """测试成功验证邮箱"""
     mock_is_enabled.return_value = True
 
-    # 登录用户
     client.post("/user/login", json={
         "login": "unverified",
         "password": "password123"
     })
 
-    # 获取验证 token
     token = unverified_user.email_verification_token
 
-    # 验证邮箱
     response = client.get(f"/user/email/verify/{token}")
 
     assert response.status_code == 200
@@ -424,7 +421,6 @@ def test_email_verify_success(mock_is_enabled, client, unverified_user, db):
     assert data["success"] is True
     assert data["message"] == "邮箱验证成功"
 
-    # 验证用户的邮箱已被标记为已验证
     db.session.refresh(unverified_user)
     assert unverified_user.email_verified is True
     assert unverified_user.email_verification_token is None
@@ -436,13 +432,11 @@ def test_email_verify_invalid_token(mock_is_enabled, client, unverified_user):
     """测试使用无效 token 验证邮箱"""
     mock_is_enabled.return_value = True
 
-    # 登录用户
     client.post("/user/login", json={
         "login": "unverified",
         "password": "password123"
     })
 
-    # 使用无效的 token
     invalid_token = "invalid_token_12345"
 
     response = client.get(f"/user/email/verify/{invalid_token}")
@@ -458,13 +452,11 @@ def test_email_verify_expired_token(mock_is_enabled, client, unverified_user, db
     """测试使用过期 token 验证邮箱"""
     mock_is_enabled.return_value = True
 
-    # 登录用户
     client.post("/user/login", json={
         "login": "unverified",
         "password": "password123"
     })
 
-    # 获取 token 并手动设置为过期
     token = unverified_user.email_verification_token
     from datetime import timedelta
     unverified_user.email_verification_token_expires = datetime.utcnow() - timedelta(hours=1)
@@ -483,7 +475,6 @@ def test_email_verify_disabled(mock_is_enabled, client, unverified_user):
     """测试邮件验证功能未启用时的行为"""
     mock_is_enabled.return_value = False
 
-    # 登录用户
     client.post("/user/login", json={
         "login": "unverified",
         "password": "password123"
@@ -516,16 +507,13 @@ def test_resend_verification_email_success(mock_is_enabled, mock_create_task, cl
     """测试成功重新发送验证邮件"""
     mock_is_enabled.return_value = True
 
-    # 登录用户
     client.post("/user/login", json={
         "login": "unverified",
         "password": "password123"
     })
 
-    # 记录旧的 token
     old_token = unverified_user.email_verification_token
 
-    # 重新发送验证邮件
     response = client.post("/user/email/resend-verification")
 
     assert response.status_code == 200
@@ -533,13 +521,11 @@ def test_resend_verification_email_success(mock_is_enabled, mock_create_task, cl
     assert data["success"] is True
     assert "验证邮件已发送" in data["message"]
 
-    # 验证生成了新的 token
     db.session.refresh(unverified_user)
     new_token = unverified_user.email_verification_token
     assert new_token is not None
     assert new_token != old_token
 
-    # 验证调用了 create_task
     mock_create_task.assert_called_once()
     call_args = mock_create_task.call_args
     assert call_args[1]["task_type"] == "send_verification_email"
@@ -555,7 +541,6 @@ def test_resend_verification_email_already_verified(mock_is_enabled, client, reg
     """测试邮箱已验证时无法重新发送验证邮件"""
     mock_is_enabled.return_value = True
 
-    # 登录用户（regular_user 的邮箱已验证）
     client.post("/user/login", json={
         "login": "testuser",
         "password": "password123"
@@ -574,7 +559,6 @@ def test_resend_verification_email_disabled(mock_is_enabled, client, unverified_
     """测试邮件验证功能未启用时无法重新发送"""
     mock_is_enabled.return_value = False
 
-    # 登录用户
     client.post("/user/login", json={
         "login": "unverified",
         "password": "password123"
@@ -609,7 +593,6 @@ def test_zhixue_binding_info_requires_login(client):
 @patch("app.user.routes.login_student")
 def test_zhixue_bind_success(mock_login_student, client, regular_user, mock_zhixue_student_account, db):
     """测试成功绑定智学网账号（使用 mock）"""
-    # 配置 mock：让 login_student 返回我们的 mock 对象
     mock_login_student.return_value = mock_zhixue_student_account
 
     client.post("/user/login", json={
@@ -627,10 +610,8 @@ def test_zhixue_bind_success(mock_login_student, client, regular_user, mock_zhix
     assert data["success"] is True
     assert "已绑定" in data["message"]
 
-    # 验证 login_student 被正确调用
     mock_login_student.assert_called_once_with("zhixue_test", "zhixue_pass")
 
-    # 验证用户确实绑定了智学网账号
     db.session.refresh(regular_user)
     assert regular_user.zhixue is not None
     assert regular_user.zhixue.username == "zhixue_test"
@@ -639,8 +620,7 @@ def test_zhixue_bind_success(mock_login_student, client, regular_user, mock_zhix
 @patch("app.user.routes.login_student")
 def test_zhixue_bind_login_failure(mock_login_student, client, regular_user):
     """测试绑定时智学网登录失败"""
-    # 配置 mock：让 login_student 抛出异常
-    mock_login_student.side_effect = Exception("智学网登录失败")
+    mock_login_student.side_effect = Exception("用户名或密码错误")
 
     client.post("/user/login", json={
         "login": "testuser",
@@ -660,7 +640,6 @@ def test_zhixue_bind_login_failure(mock_login_student, client, regular_user):
 
 def test_zhixue_bind_already_bound(client, regular_user, test_zhixue_account, db):
     """测试用户已绑定时无法再次绑定"""
-    # 先绑定一个智学网账号
     regular_user.zhixue = test_zhixue_account
     db.session.commit()
 
