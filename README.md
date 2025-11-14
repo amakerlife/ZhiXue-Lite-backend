@@ -1,4 +1,4 @@
-<h1 align="center">- ZhiXue Lite -</h1>
+<h1 align="center">- ZhiXue Lite Backend -</h1>
 
 <p align="center">
 <img src="https://img.shields.io/github/license/amakerlife/ZhiXue-Lite-backend" alt="License" />
@@ -8,7 +8,7 @@
     <img src="https://socialify.git.ci/amakerlife/ZhiXue-Lite-backend/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Light">
 </p>
 
-对接智学网官方 API 的轻量 Web 应用。
+对接智学网官方 API 的轻量 Web 后端应用。
 
 ---
 
@@ -31,7 +31,7 @@ get_user api 管理员返回是否在 su 模式
 
 支持选择学校（后端返回学校列表）
 
-考试数据库存储考试年级、级别、学校(list)等详细信息
+考试数据库存储考试年级、级别等详细信息
 
 学生、教师自动选择合适的登录方式，并保存
 
