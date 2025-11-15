@@ -9,6 +9,7 @@ on:
 
 jobs:
   quick-test:
+    name: Python Quick Test
     runs-on: ubuntu-latest
 
     services:
