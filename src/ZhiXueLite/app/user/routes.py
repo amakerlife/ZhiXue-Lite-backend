@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import select
 from app.models.student import login_student
@@ -158,7 +158,26 @@ def logout():
 @login_required
 def get_current_user():
     """获取当前用户信息"""
-    return jsonify({"success": True, "user": current_user.to_dict()}), 200
+    user_data = current_user.to_dict()
+
+    # 只有管理员或处于 su 模式的用户才返回 su 模式信息
+    is_su_mode = session.get("su_mode", False)
+    if current_user.role == "admin" or is_su_mode:
+        su_info = {
+            "is_su_mode": is_su_mode,
+            "original_user_username": None
+        }
+
+        if is_su_mode:
+            original_user_id = session.get("original_user_id")
+            if original_user_id:
+                original_user = db.session.get(User, original_user_id)
+                if original_user:
+                    su_info["original_user_username"] = original_user.username
+
+        user_data["su_info"] = su_info
+
+    return jsonify({"success": True, "user": user_data}), 200
 
 
 @user_bp.route("/me", methods=["PUT"])

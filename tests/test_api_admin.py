@@ -324,6 +324,23 @@ def test_admin_unbind_user_from_zhixue(client, admin_user, regular_user, test_zh
 
 # Su 模式测试
 
+def test_admin_get_su_info_not_in_su_mode(client, admin_user):
+    """
+    测试管理员在非 su 模式下也会收到 su_info 字段
+    """
+    login_as_admin(client, admin_user)
+
+    response = client.get("/user/me")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["user"]["username"] == admin_user.username
+
+    # 验证管理员会收到 su_info 字段，且为非 su 状态
+    assert "su_info" in data["user"]
+    assert data["user"]["su_info"]["is_su_mode"] is False
+    assert data["user"]["su_info"]["original_user_username"] is None
+
+
 def test_admin_su_switch_user_success(client, admin_user, regular_user, db):
     """
     测试管理员成功切换到其他用户
@@ -336,10 +353,18 @@ def test_admin_su_switch_user_success(client, admin_user, regular_user, db):
     assert data["success"] is True
     assert data["user"]["username"] == regular_user.username
 
+    # 验证 /user/me 返回 su 状态信息
     response = client.get("/user/me")
     assert response.status_code == 200
     data = response.get_json()
     assert data["user"]["username"] == regular_user.username
+
+    # 验证 su_info 字段存在且正确
+    assert "su_info" in data["user"]
+    assert data["user"]["su_info"]["is_su_mode"] is True
+    assert data["user"]["su_info"]["original_user_username"] == admin_user.username
+
+    # 验证 session 中的数据
     with client.session_transaction() as sess:
         assert sess.get("su_mode") is True
         assert sess.get("original_user_id") == admin_user.id
@@ -360,11 +385,18 @@ def test_admin_su_exit_success(client, admin_user, regular_user, db):
     data = response.get_json()
     assert data["success"] is True
 
+    # 验证 /user/me 返回正常状态信息（非 su 模式）
     response = client.get("/user/me")
     assert response.status_code == 200
     data = response.get_json()
     assert data["user"]["username"] == admin_user.username
 
+    # 验证 su_info 字段存在且为非 su 状态
+    assert "su_info" in data["user"]
+    assert data["user"]["su_info"]["is_su_mode"] is False
+    assert data["user"]["su_info"]["original_user_username"] is None
+
+    # 验证 session 中的数据已清除
     with client.session_transaction() as sess:
         assert sess.get("su_mode") is None
         assert sess.get("original_user_id") is None
