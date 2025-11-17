@@ -1,12 +1,13 @@
 import os
 from datetime import datetime
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, json
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, logout_user
 from flask_session import Session
 from flask_migrate import Migrate
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.database import db, init_db
@@ -70,6 +71,19 @@ def create_app():
             response_data["message"] = f"请求过于频繁，请在 {e.retry_after} 秒后重试"
 
         return jsonify(response_data), 429
+
+    @app.errorhandler(HTTPException)
+    def handle_exception(e):
+        """Return JSON instead of HTML for HTTP errors."""
+        response = e.get_response()
+        response.data = json.dumps({
+            "success": False,
+            "code": e.code,
+            "message": e.name,
+            # "message": e.description,
+        })
+        response.content_type = "application/json"
+        return response
 
     login_manager = LoginManager()
     login_manager.init_app(app)
