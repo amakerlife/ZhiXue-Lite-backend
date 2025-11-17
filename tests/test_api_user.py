@@ -286,6 +286,9 @@ def test_show_self_info(client, regular_user):
     assert "permissions" in data["user"]
     assert "password" not in data["user"]
 
+    # 验证普通用户不会收到 su_info 字段
+    assert "su_info" not in data["user"]
+
 
 def test_show_other_user_info(client, regular_user, db):
     """测试用户查看其他用户的信息"""
