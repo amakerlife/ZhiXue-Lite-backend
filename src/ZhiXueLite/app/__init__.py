@@ -2,11 +2,13 @@ import os
 from datetime import datetime
 from flask import Flask, jsonify, request, json
 from flask_cors import CORS
+from flask_caching import Cache
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, logout_user
 from flask_session import Session
 from flask_migrate import Migrate
+from sqlalchemy import distinct, func, select
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -15,6 +17,7 @@ from app.config import config
 from app.utils.email import is_email_verification_enabled
 from app.utils.logger import setup_logger
 import app.database.models  # 确保模型被导入以便 SQLAlchemy 可以识别它们
+from app.database.models import User, School, Exam, ExamSchool
 
 
 def get_user_id():
@@ -56,6 +59,12 @@ def create_app():
     Session(app)
 
     limiter.init_app(app)
+
+    # 初始化缓存
+    cache = Cache(app, config={
+        'CACHE_TYPE': 'SimpleCache',
+        'CACHE_DEFAULT_TIMEOUT': 300  # 5 分钟
+    })
 
     # 自定义频率限制错误处理器
     @app.errorhandler(429)
@@ -121,7 +130,7 @@ def create_app():
         if request.method == "OPTIONS":
             return
 
-        if request.endpoint in ["user.login", "user.signup", "ping"]:
+        if request.endpoint in ["user.login", "user.signup", "ping", "get_statistics"]:
             return
 
         if current_user.is_authenticated and not current_user.is_active:
@@ -141,7 +150,7 @@ def create_app():
         if request.method == "OPTIONS":
             return
 
-        if request.endpoint in ["user.login", "user.signup", "user.get_current_user", "user.get_binding_info", "user.verify_email", "user.resend_verification_email", "user.update_current_user", "admin.exit_su", "ping"]:
+        if request.endpoint in ["user.login", "user.signup", "user.get_current_user", "user.get_binding_info", "user.verify_email", "user.resend_verification_email", "user.update_current_user", "admin.exit_su", "ping", "get_statistics"]:
             return
 
         if current_user.is_authenticated and not current_user.email_verified:
@@ -171,6 +180,37 @@ def create_app():
             "success": True,
             "message": "pong",
             "timestamp": datetime.utcnow().isoformat()
+        }), 200
+
+    @app.route("/statistics", methods=["GET"])
+    def get_statistics():
+        """获取系统统计信息（公开端点，缓存 5 分钟）"""
+        cached_stats = cache.get("statistics_data")
+        if cached_stats is not None:
+            return jsonify({
+                "success": True,
+                "statistics": cached_stats
+            }), 200
+
+        total_users = db.session.scalar(select(func.count(User.id)))
+        total_schools = db.session.scalar(select(func.count(School.id)))
+        total_exams = db.session.scalar(select(func.count(Exam.id)))
+        saved_exams = db.session.scalar(
+            select(func.count(distinct(ExamSchool.exam_id)))
+            .where(ExamSchool.is_saved == True)
+        )
+
+        stats_data = {
+            "total_users": total_users or 0,
+            "total_schools": total_schools or 0,
+            "total_exams": total_exams or 0,
+            "saved_exams": saved_exams or 0
+        }
+        cache.set("statistics_data", stats_data, timeout=300)
+
+        return jsonify({
+            "success": True,
+            "statistics": stats_data
         }), 200
 
     @app.cli.command("init-db")
