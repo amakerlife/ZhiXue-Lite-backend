@@ -197,7 +197,7 @@ def create_app():
         total_exams = db.session.scalar(select(func.count(Exam.id)))
         saved_exams = db.session.scalar(
             select(func.count(distinct(ExamSchool.exam_id)))
-            .where(ExamSchool.is_saved == True)
+            .where(ExamSchool.is_saved.is_(True))
         )
 
         stats_data = {
