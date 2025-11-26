@@ -1816,7 +1816,8 @@ def test_answersheet_both_id_and_name_error(client, user_with_zhixue, exam_with_
     """测试同时指定 student_id 和 student_name 返回错误"""
     login_user(client)
 
-    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_id=stu_001&student_name=张三")
+    response = client.get(
+        f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_id=stu_001&student_name=张三")
 
     assert response.status_code == 400
     data = response.get_json()
@@ -1884,7 +1885,8 @@ def test_answersheet_self_permission_cannot_use_name(client, user_with_zhixue, e
     """测试 SELF 权限用户无法使用学生姓名查询"""
     login_user(client)
 
-    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_name=张三&school_id={school.id}")
+    response = client.get(
+        f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_name=张三&school_id={school.id}")
 
     assert response.status_code == 403
     data = response.get_json()
@@ -1995,3 +1997,227 @@ def test_get_exam_info_no_school_returns_empty_list(client, db, admin_user):
     data = response.get_json()
     assert len(data["exam"]["schools"]) == 1  # GLOBAL 权限返回所有学校
 
+
+@pytest.fixture
+def multi_school_exam(db):
+    """创建联考测试数据（一个考试关联多个学校）"""
+    # 创建三个学校
+    school1 = School(id="school_multi_001", name="联考学校 A")
+    school2 = School(id="school_multi_002", name="联考学校 B")
+    school3 = School(id="school_multi_003", name="联考学校 C")
+    db.session.add_all([school1, school2, school3])
+    db.session.commit()
+
+    # 创建联考
+    exam = Exam(
+        id="exam_multi_schools",
+        name="联考测试",
+        created_at=int(time.time() * 1000)
+    )
+    db.session.add(exam)
+    db.session.commit()
+
+    # 关联三个学校
+    exam_school1 = ExamSchool(exam_id=exam.id, school_id=school1.id, is_saved=True)
+    exam_school2 = ExamSchool(exam_id=exam.id, school_id=school2.id, is_saved=False)
+    exam_school3 = ExamSchool(exam_id=exam.id, school_id=school3.id, is_saved=True)
+    db.session.add_all([exam_school1, exam_school2, exam_school3])
+    db.session.commit()
+
+    return {
+        "exam": exam,
+        "schools": [school1, school2, school3],
+        "exam_schools": [exam_school1, exam_school2, exam_school3]
+    }
+
+
+def test_exam_list_multi_school_global_sees_all_schools(client, db, multi_school_exam):
+    """
+    测试 GLOBAL 权限用户在考试列表中可以看到联考的所有学校信息
+
+    验证：
+    - 返回所有 3 个学校
+    - 包含正确的学校 ID、名称和保存状态
+    """
+    # 创建 GLOBAL 权限用户
+    user = User(
+        username="global_multi_user",
+        email="global_multi@example.com",
+        role="user",
+        permissions="33333",  # GLOBAL 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id=multi_school_exam["schools"][0].id  # 需要基础身份关联
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="global_multi_user", password="password123")
+
+    response = client.get("/exam/list?scope=all")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    # 找到联考
+    exam_data = next(
+        (e for e in data["exams"] if e["id"] == "exam_multi_schools"),
+        None
+    )
+    assert exam_data is not None
+
+    # GLOBAL 权限应该看到所有 3 个学校
+    assert len(exam_data["schools"]) == 3
+
+    # 验证学校 ID
+    school_ids = [s["school_id"] for s in exam_data["schools"]]
+    assert "school_multi_001" in school_ids
+    assert "school_multi_002" in school_ids
+    assert "school_multi_003" in school_ids
+
+
+def test_exam_list_multi_school_school_permission_sees_own_school_only(client, db, multi_school_exam):
+    """
+    测试 SCHOOL 权限用户在考试列表中只能看到自己学校的信息
+
+    验证：
+    - 只返回用户所属学校的信息
+    - 不泄露其他学校的 ID、名称或保存状态
+    """
+    # 创建 SCHOOL 权限用户（属于 school_multi_002）
+    user = User(
+        username="school_multi_user",
+        email="school_multi@example.com",
+        role="user",
+        permissions="22222",  # SCHOOL 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id="school_multi_002"
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="school_multi_user", password="password123")
+
+    response = client.get("/exam/list?scope=school")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    # 找到联考
+    exam_data = next(
+        (e for e in data["exams"] if e["id"] == "exam_multi_schools"),
+        None
+    )
+    assert exam_data is not None
+
+    # SCHOOL 权限应该只看到自己学校（school_multi_002）
+    assert len(exam_data["schools"]) == 1
+    assert exam_data["schools"][0]["school_id"] == "school_multi_002"
+    assert exam_data["schools"][0]["school_name"] == "联考学校 B"
+    assert exam_data["schools"][0]["is_saved"] is False
+
+
+def test_exam_list_multi_school_self_permission_sees_own_school_only(client, db, multi_school_exam):
+    """
+    测试 SELF 权限用户在考试列表中只能看到自己学校的信息
+
+    验证：
+    - 即使用户参与了联考，也只能看到自己学校的信息
+    - 不泄露其他参与学校的任何信息
+    """
+    # 创建智学网账号（属于 school_multi_001）
+    zhixue_account = ZhiXueStudentAccount(
+        id="zx_multi_001",
+        username="zx_multi_user",
+        password="password",
+        realname="联考学生",
+        cookie="cookie",
+        school_id="school_multi_001"
+    )
+    db.session.add(zhixue_account)
+    db.session.commit()
+
+    # 创建 SELF 权限用户
+    user = User(
+        username="self_multi_user",
+        email="self_multi@example.com",
+        role="user",
+        permissions="11111",  # SELF 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        zhixue_account_id=zhixue_account.id
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    # 创建 UserExam 关联
+    user_exam = UserExam(zhixue_id=zhixue_account.id, exam_id="exam_multi_schools")
+    db.session.add(user_exam)
+    db.session.commit()
+
+    login_user(client, username="self_multi_user", password="password123")
+
+    response = client.get("/exam/list?scope=self")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    # 找到联考
+    exam_data = next(
+        (e for e in data["exams"] if e["id"] == "exam_multi_schools"),
+        None
+    )
+    assert exam_data is not None
+
+    # SELF 权限应该只看到自己学校（school_multi_001）
+    assert len(exam_data["schools"]) == 1
+    assert exam_data["schools"][0]["school_id"] == "school_multi_001"
+    assert exam_data["schools"][0]["school_name"] == "联考学校 A"
+    assert exam_data["schools"][0]["is_saved"] is True
+
+
+def test_exam_list_schools_filter_consistency_with_exam_detail(client, db, multi_school_exam):
+    """
+    测试考试列表的学校过滤与考试详情 API 保持一致
+
+    验证：
+    - /exam/list 返回的学校信息
+    - 与 /exam/{exam_id} 返回的学校信息一致
+    """
+    user = User(
+        username="consistency_test_user",
+        email="consistency@example.com",
+        role="user",
+        permissions="22222",  # SCHOOL 权限
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        manual_school_id="school_multi_003"
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    login_user(client, username="consistency_test_user", password="password123")
+
+    list_response = client.get("/exam/list?scope=school")
+    assert list_response.status_code == 200
+    list_data = list_response.get_json()
+
+    # 找到联考
+    list_exam = next(
+        (e for e in list_data["exams"] if e["id"] == "exam_multi_schools"),
+        None
+    )
+    assert list_exam is not None
+
+    # 获取考试详情
+    detail_response = client.get(f"/exam/{multi_school_exam['exam'].id}")
+    assert detail_response.status_code == 200
+    detail_data = detail_response.get_json()
+
+    # 验证学校信息一致
+    assert len(list_exam["schools"]) == len(detail_data["exam"]["schools"])
+    assert list_exam["schools"][0]["school_id"] == detail_data["exam"]["schools"][0]["school_id"]
+    assert list_exam["schools"][0]["school_name"] == detail_data["exam"]["schools"][0]["school_name"]
+    assert list_exam["schools"][0]["is_saved"] == detail_data["exam"]["schools"][0]["is_saved"]

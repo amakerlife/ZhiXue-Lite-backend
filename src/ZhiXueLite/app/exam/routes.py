@@ -137,8 +137,27 @@ def get_exam_list():
 
     paginated_exams = paginated_json(exams, page, per_page)
     exam_list = []
+
+    has_global_permission = current_user.has_permission(
+        PermissionType.VIEW_EXAM_LIST, PermissionLevel.GLOBAL
+    )
+    user_school_id = current_user.school_id
+
     for item in paginated_exams["items"]:
-        schools = item.get_schools_saved_status()
+        if has_global_permission:
+            schools = item.get_schools_saved_status()
+        elif user_school_id:
+            schools = [
+                {
+                    "school_id": es.school_id,
+                    "school_name": es.school.name if es.school else None,
+                    "is_saved": es.is_saved
+                }
+                for es in item.schools
+                if es.school_id == user_school_id
+            ]
+        else:
+            schools = []
 
         exam_list.append({
             "id": item.id,
