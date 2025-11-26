@@ -7,7 +7,7 @@ services:
     env_file:
       - .env
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./pg_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
@@ -49,6 +49,3 @@ services:
       db:
         condition: service_healthy
     command: python src/ZhiXueLite/task_worker/start.py
-
-volumes:
-  postgres_data:
