@@ -98,8 +98,6 @@ def login_via_changyan(
         "a": "0",
         "m": "",
         "dm": "web",
-        "version": "v3",
-        "rememberPwdVersion": "v3",
         "co": captcha_data["seccode"]["captcha_output"],
         "gt": captcha_data["seccode"]["gen_time"],
         "ln": captcha_data["seccode"]["lot_number"],
