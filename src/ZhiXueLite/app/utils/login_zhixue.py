@@ -106,8 +106,15 @@ def login_via_changyan(
         "cat": "third",
     }
     captcha_result = session.post(CHANGYAN_LOGIN_URL, data=data).json()
-    if captcha_result["Msg"] != "用户未签署过用户协议" or captcha_result["Code"] == -11:
+    if captcha_result["Msg"] == "用户未签署过用户协议" or captcha_result["Code"] == -11:
         session.post(CHANGYAN_AGREEMENT_URL)
+        captcha_data = gen_captcha_data(session)
+        data.update({
+            "co": captcha_data["seccode"]["captcha_output"],
+            "gt": captcha_data["seccode"]["gen_time"],
+            "ln": captcha_data["seccode"]["lot_number"],
+            "pt": captcha_data["seccode"]["pass_token"],
+        })
         captcha_result = session.post(CHANGYAN_LOGIN_URL, data=data).json()
     if captcha_result["Msg"] != "获取用户信息成功":
         logger.error(
