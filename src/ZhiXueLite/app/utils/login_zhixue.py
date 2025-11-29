@@ -197,6 +197,10 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
     origin_password = password
     password = gen_encrypted_password(password)
     session = get_basic_session()
+
+    if username.isdigit() and len(username) == 8:
+        login_method = "zhixue"
+
     if login_method == "zhixue":
         try:
             captcha_data = gen_captcha_data(session)
