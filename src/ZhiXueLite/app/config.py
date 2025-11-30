@@ -18,6 +18,13 @@ class Config:
         "pool_size": 10,
         "max_overflow": 5,
         "pool_timeout": 30,
+        "pool_reset_on_return": "rollback",  # 连接返回池时执行 ROLLBACK，清理事务状态
+        "connect_args": {
+            "keepalives": 1,              # 启用 TCP keepalive
+            "keepalives_idle": 30,        # 30 秒无活动后发送探测包
+            "keepalives_interval": 10,    # 每 10 秒重试
+            "keepalives_count": 5,        # 5 次失败后判定连接死亡
+        },
     }
 
     # --- Flask-Login 配置 ---
