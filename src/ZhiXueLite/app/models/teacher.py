@@ -187,6 +187,8 @@ class ExtendedTeacherAccount(TeacherAccount):
                 if current_score == -1:
                     score_obj.schoolrank = str(len(sorted_scores))
                 else:
+                    # 同分最高名次：只有当分数不同时才更新排名
+                    # 例如：100, 100, 100, 99 → 1, 1, 1, 4
                     if prev_score is not None and current_score != prev_score:
                         current_rank = i + 1
                     score_obj.schoolrank = str(current_rank)
@@ -203,6 +205,8 @@ class ExtendedTeacherAccount(TeacherAccount):
                     if current_score == -1:
                         score_obj.classrank = str(len(sorted_class_scores))
                     else:
+                        # 同分最高名次：只有当分数不同时才更新排名
+                        # 例如：100, 100, 100, 99 → 1, 1, 1, 4
                         if prev_score is not None and current_score != prev_score:
                             current_rank = i + 1
                         score_obj.classrank = str(current_rank)
@@ -218,6 +222,40 @@ class ExtendedTeacherAccount(TeacherAccount):
         Returns:
             list: 成绩单
         """
+        def calculate_total_score(scores_list: list) -> str:
+            """
+            计算总分
+
+            Args:
+                scores_list: 各科成绩列表（不包括总分）
+
+            Returns:
+                str: 计算出的总分
+            """
+            total = 0.0
+            valid_count = 0
+
+            for score_obj in scores_list:
+                if score_obj.subjectcode == -1:  # 跳过总分项
+                    continue
+
+                # 解析分数
+                score_str = str(score_obj.score)
+                if score_str and score_str != "-":
+                    try:
+                        # 处理可能包含"剔除"等文本的分数
+                        numbers = re.findall(r"-?\d+\.?\d*", score_str)
+                        if numbers:
+                            total += float(numbers[0])
+                            valid_count += 1
+                    except (ValueError, IndexError):
+                        pass  # 跳过无效成绩
+
+            if valid_count == 0:
+                return "-"
+
+            return str(total)
+
         subjects = self.get_exam_subjects(examid)
         r = self.get_session().post(
             "https://www.zhixue.com/api-teacher/api/studentScore/getAllSubjectStudentRank",
@@ -253,17 +291,44 @@ class ExtendedTeacherAccount(TeacherAccount):
                 student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentNo"],
                                                 student["userNum"], student["studentLabel"], student["className"],
                                                 student["allScore"], student["classRank"], student["schoolRank"])
-                student_info.add_subject_score("总分", student["allScore"], student["classRank"], student["schoolRank"],
-                                               -1, "0", str(total_score), -1)
-                if "-" in student["schoolRank"] or "-" in student["classRank"]:
-                    need_calc_rank = True
+
+                # 先添加各科成绩
                 for score_info in student["scoreInfos"]:
                     subject_name = subjects[score_info["subjectCode"]]["name"]
                     subject_sort = subjects[score_info["subjectCode"]]["sort"]
-                    student_info.add_subject_score(subject_name, score_info["score"], score_info["classRank"],
-                                                   score_info["schoolRank"], score_info["subjectCode"],
-                                                   subjects[score_info["subjectCode"]]["id"],
-                                                   subjects[score_info["subjectCode"]]["score"], int(subject_sort))
+                    student_info.add_subject_score(
+                        subject_name, score_info["score"], score_info["classRank"],
+                        score_info["schoolRank"], score_info["subjectCode"],
+                        subjects[score_info["subjectCode"]]["id"],
+                        subjects[score_info["subjectCode"]]["score"],
+                        int(subject_sort),
+                        is_calculated=False  # 各科成绩不是计算得到的
+                    )
+
+                # 处理总分
+                is_total_calculated = False
+                total_score_value = student["allScore"]
+                total_class_rank = student["classRank"]
+                total_school_rank = student["schoolRank"]
+
+                # 检查 allScore 是否为无效值
+                if student["allScore"] in ["-", "", None]:
+                    # 计算总分
+                    calculated_score = calculate_total_score(student_info.scores)
+                    total_score_value = calculated_score
+                    is_total_calculated = True
+                    # 总分排名将在后续的 calc_rank 中计算
+
+                # 添加总分
+                student_info.add_subject_score(
+                    "总分", total_score_value, total_class_rank, total_school_rank,
+                    -1, "0", str(total_score), -1,
+                    is_calculated=is_total_calculated
+                )
+
+                if "-" in student["schoolRank"] or "-" in student["classRank"] or is_total_calculated:
+                    need_calc_rank = True
+
                 students_list.append(student_info)
             sleep(0.5)
         if need_calc_rank:

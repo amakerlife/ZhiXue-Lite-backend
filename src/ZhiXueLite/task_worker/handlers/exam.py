@@ -209,6 +209,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     existing_score.class_rank = score.classrank
                     existing_score.school_rank = score.schoolrank
                     existing_score.sort = score.sort
+                    existing_score.is_calculated = score.is_calculated
                     # 如果 legacy 数据 school_id 为 None，则补全 school_id
                     if existing_score.school_id is None:
                         existing_score.school_id = school_id
@@ -227,6 +228,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     class_rank=score.classrank,
                     school_rank=score.schoolrank,
                     sort=score.sort,
+                    is_calculated=score.is_calculated
                 )
                 session.add(new_score)
 

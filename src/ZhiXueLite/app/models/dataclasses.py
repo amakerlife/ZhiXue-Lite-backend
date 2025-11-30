@@ -11,6 +11,7 @@ class Score():
     topicsetid: str
     standard_score: str
     sort: int = 1
+    is_calculated: bool = False  # 总分是否为计算得到
 
 
 @dataclass
@@ -35,7 +36,8 @@ class StudentScoreInfo():
         subject_code: int,
         topicsetid: str,
         standard_score: str,
-        sort: int = 1
+        sort: int = 1,
+        is_calculated: bool = False
     ):
         self.scores.append(Score(
             subject_name,
@@ -45,5 +47,6 @@ class StudentScoreInfo():
             subject_code,
             topicsetid,
             standard_score,
-            sort
+            sort,
+            is_calculated
         ))

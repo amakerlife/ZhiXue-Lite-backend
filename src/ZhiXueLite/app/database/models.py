@@ -238,6 +238,7 @@ class Score(BaseDBClass):
     class_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     school_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     score_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="ok")  # 状态，ok 正常，错误状态待发掘
+    is_calculated: Mapped[bool] = mapped_column(Boolean, default=False)  # 总分是否为计算得到
 
     student: Mapped["Student"] = relationship("Student", back_populates="scores")
     exam: Mapped["Exam"] = relationship("Exam", back_populates="scores")

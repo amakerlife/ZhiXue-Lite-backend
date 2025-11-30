@@ -463,6 +463,7 @@ def get_user_exam_score(exam_id):
             "class_rank": raw_score.class_rank,
             "school_rank": raw_score.school_rank,
             "sort": raw_score.sort,
+            "is_calculated": raw_score.is_calculated,  # 总分是否为计算得到
         })
 
     # 根据权限返回不同的学校列表
