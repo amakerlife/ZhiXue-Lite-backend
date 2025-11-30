@@ -235,7 +235,10 @@ class ExtendedTeacherAccount(TeacherAccount):
             "https://www.zhixue.com/api-teacher/api/studentScore/studentExamScore",
             data={"examId": examid}
         )
-        total_score = r.json()["result"]["schoolExamArchive"]["standardScore"]
+        try:
+            total_score = r.json()["result"]["schoolExamArchive"]["standardScore"]
+        except KeyError:
+            total_score = -1
 
         for page in range(1, pages + 1):
             r = self.get_session().post(
