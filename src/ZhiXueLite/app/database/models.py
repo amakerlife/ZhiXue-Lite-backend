@@ -392,6 +392,19 @@ class User(UserMixin, BaseDBClass):
         return False
 
     def to_dict(self):
+        zhixue_info = {
+            "username": self.zhixue.username if self.zhixue else None,
+            "realname": self.zhixue.realname if self.zhixue else None,
+            "school_name": self.school_name,
+            "school_id": self.school_id,
+        }
+
+        if self.zhixue:
+            zhixue_info["school_has_teacher"] = (
+                self.zhixue.school is not None and
+                self.zhixue.school.teacher is not None
+            )
+
         return {
             "username": self.username,
             "email": self.email,
@@ -401,12 +414,7 @@ class User(UserMixin, BaseDBClass):
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "is_manual_school": self.manual_school_id is not None,
-            "zhixue_info": {
-                "username": self.zhixue.username if self.zhixue else None,
-                "realname": self.zhixue.realname if self.zhixue else None,
-                "school_name": self.school_name,
-                "school_id": self.school_id,
-            },
+            "zhixue_info": zhixue_info,
         }
 
     def to_dict_all(self):
