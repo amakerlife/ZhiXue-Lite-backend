@@ -25,6 +25,10 @@ def test_user_login_success(client, regular_user):
     assert "user" in data
     assert data["user"]["username"] == "testuser"
 
+    # 验证 zhixue_info 结构
+    assert "zhixue_info" in data["user"]
+    assert data["user"]["zhixue_info"]["school_has_teacher"] is False
+
 
 def test_user_login_wrong_password(client, regular_user):
     """
@@ -286,8 +290,74 @@ def test_show_self_info(client, regular_user):
     assert "permissions" in data["user"]
     assert "password" not in data["user"]
 
+    # 验证 zhixue_info 结构
+    assert "zhixue_info" in data["user"]
+    assert "school_has_teacher" in data["user"]["zhixue_info"]
+    # regular_user 默认未绑定智学网，应为 False
+    assert data["user"]["zhixue_info"]["school_has_teacher"] is False
+
     # 验证普通用户不会收到 su_info 字段
     assert "su_info" not in data["user"]
+
+
+def test_user_with_zhixue_no_teacher_school_has_teacher(
+    client, regular_user, test_zhixue_account, db
+):
+    """测试用户绑定智学网但学校无教师账号时 school_has_teacher 为 False"""
+    # 绑定智学网账号到用户
+    regular_user.zhixue = test_zhixue_account
+    db.session.commit()
+
+    # 登录
+    client.post("/user/login", json={
+        "login": "testuser",
+        "password": "password123"
+    })
+
+    # 获取用户信息
+    response = client.get("/user/me")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    # 验证 zhixue_info 结构
+    assert "zhixue_info" in data["user"]
+    assert data["user"]["zhixue_info"]["username"] == test_zhixue_account.username
+    assert data["user"]["zhixue_info"]["realname"] == test_zhixue_account.realname
+    assert data["user"]["zhixue_info"]["school_name"] == "测试中学"
+    assert data["user"]["zhixue_info"]["school_id"] == test_zhixue_account.school_id
+
+    # 验证 school_has_teacher 为 False（学校未绑定教师）
+    assert data["user"]["zhixue_info"]["school_has_teacher"] is False
+
+
+def test_user_with_zhixue_has_teacher_school_has_teacher(
+    client, regular_user, test_zhixue_account, test_teacher_account, db
+):
+    """测试用户绑定智学网且学校有教师账号时 school_has_teacher 为 True"""
+    # 绑定智学网账号到用户
+    regular_user.zhixue = test_zhixue_account
+    db.session.commit()
+
+    # 登录
+    client.post("/user/login", json={
+        "login": "testuser",
+        "password": "password123"
+    })
+
+    # 获取用户信息
+    response = client.get("/user/me")
+    assert response.status_code == 200
+    data = response.get_json()
+
+    # 验证 zhixue_info 结构
+    assert "zhixue_info" in data["user"]
+    assert data["user"]["zhixue_info"]["username"] == test_zhixue_account.username
+    assert data["user"]["zhixue_info"]["realname"] == test_zhixue_account.realname
+    assert data["user"]["zhixue_info"]["school_name"] == "测试中学"
+    assert data["user"]["zhixue_info"]["school_id"] == test_zhixue_account.school_id
+
+    # 验证 school_has_teacher 为 True（学校已绑定教师）
+    assert data["user"]["zhixue_info"]["school_has_teacher"] is True
 
 
 def test_show_other_user_info(client, regular_user, db):
@@ -619,6 +689,14 @@ def test_zhixue_bind_success(mock_login_student, client, regular_user, mock_zhix
     db.session.refresh(regular_user)
     assert regular_user.zhixue is not None
     assert regular_user.zhixue.username == "zhixue_test"
+
+    # 验证绑定后的 school_has_teacher 字段
+    response = client.get("/user/me")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert "zhixue_info" in data["user"]
+    # 由于使用的是 mock，且没有创建教师账号，应为 False
+    assert data["user"]["zhixue_info"]["school_has_teacher"] is False
 
 
 @patch("app.user.routes.login_student")

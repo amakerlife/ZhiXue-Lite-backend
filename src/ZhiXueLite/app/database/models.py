@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
+import secrets
 from typing import Optional
 import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -362,9 +363,6 @@ class User(UserMixin, BaseDBClass):
         Args:
             expires_hours: 令牌有效期（小时），默认 24 小时
         """
-        import secrets
-        from datetime import timedelta
-
         self.email_verification_token = secrets.token_urlsafe(32)
         self.email_verification_token_expires = datetime.utcnow() + timedelta(hours=expires_hours)
 
@@ -391,12 +389,14 @@ class User(UserMixin, BaseDBClass):
 
         return False
 
-    def to_dict(self):
+    def __get_zhixue_info(self):
+        """获取智学网账号信息"""
         zhixue_info = {
             "username": self.zhixue.username if self.zhixue else None,
             "realname": self.zhixue.realname if self.zhixue else None,
             "school_name": self.school_name,
             "school_id": self.school_id,
+            "school_has_teacher": False
         }
 
         if self.zhixue:
@@ -405,6 +405,9 @@ class User(UserMixin, BaseDBClass):
                 self.zhixue.school.teacher is not None
             )
 
+        return zhixue_info
+
+    def to_dict(self):
         return {
             "username": self.username,
             "email": self.email,
@@ -414,7 +417,7 @@ class User(UserMixin, BaseDBClass):
             "is_active": self.is_active,
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "is_manual_school": self.manual_school_id is not None,
-            "zhixue_info": zhixue_info,
+            "zhixue_info": self.__get_zhixue_info(),
         }
 
     def to_dict_all(self):
@@ -430,12 +433,7 @@ class User(UserMixin, BaseDBClass):
             "registration_ip": self.registration_ip,
             "last_login_ip": self.last_login_ip,
             "is_manual_school": self.manual_school_id is not None,
-            "zhixue_info": {
-                "username": self.zhixue.username if self.zhixue else None,
-                "realname": self.zhixue.realname if self.zhixue else None,
-                "school_name": self.school_name,
-                "school_id": self.school_id,
-            },
+            "zhixue_info": self.__get_zhixue_info(),
         }
 
     @property
