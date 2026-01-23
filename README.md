@@ -25,9 +25,7 @@ flask run
 
 ## Todo List
 
-get_user api 管理员返回是否在 su 模式
-
-拉取联考分数数据时，可以选择拉取某些学校的数据
+允许选择是否使用 redis 存储 limiter 数据
 
 支持选择学校（后端返回学校列表）
 

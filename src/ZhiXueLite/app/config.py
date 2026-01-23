@@ -1,6 +1,7 @@
 from datetime import timedelta
 import os
 
+from cachelib import SimpleCache
 from dotenv import load_dotenv
 
 from app.database import db
@@ -87,8 +88,9 @@ class TestingConfig(Config):
     SQLALCHEMY_ENGINE_OPTIONS = {}
     # 禁用某些在测试中不需要的功能
     WTF_CSRF_ENABLED = False
-    # 测试环境使用 filesystem 会话，conftest.py 会自动清理
-    SESSION_TYPE = "filesystem"
+    # 测试环境内存会话
+    SESSION_TYPE = "cachelib"
+    SESSION_CACHELIB = SimpleCache()
     # 禁用速率限制
     RATELIMIT_ENABLED = False
 
