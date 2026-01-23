@@ -29,24 +29,24 @@ def setup_logger(app=None):
     os.makedirs(log_dir, exist_ok=True)
 
     # 按日期分割日志文件
-    log_file = os.path.join(log_dir, "{time:YYYY-MM-DD}.log")
+    log_file = os.path.join(log_dir, "app.log")
     logger.add(
         log_file,
         level=log_level,
         rotation="00:00",
-        retention="30 days",
+        # retention="30 days",
         compression="zip",
         encoding="utf-8",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
     )
 
     # 记录错误日志
-    error_log_file = os.path.join(log_dir, "error_{time:YYYY-MM-DD}.log")
+    error_log_file = os.path.join(log_dir, "app.error.log")
     logger.add(
         error_log_file,
         level="ERROR",
         rotation="00:00",
-        retention="90 days",
+        # retention="90 days",
         compression="zip",
         encoding="utf-8",
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
