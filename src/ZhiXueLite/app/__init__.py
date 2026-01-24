@@ -29,7 +29,8 @@ def get_user_id():
 
 limiter = Limiter(
     key_func=get_user_id,
-    storage_uri="memory://"
+    storage_uri=config.RATELIMIT_STORAGE_URI or "memory://",
+    enabled=config.RATELIMIT_ENABLED,
 )
 
 

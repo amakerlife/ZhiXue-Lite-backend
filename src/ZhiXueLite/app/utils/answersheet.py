@@ -9,6 +9,7 @@ from app.models.exceptions import ZhixueError
 
 font_path = config.FONT_PATH
 
+
 def get_size(text: str, font: ImageFont.FreeTypeFont) -> Tuple[float, float]:
     """获取文本的宽度和高度"""
     left, top, right, bottom = font.getbbox(text, "utf-8")

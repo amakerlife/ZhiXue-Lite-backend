@@ -22,7 +22,7 @@ def verify_turnstile_token(token: str, remote_ip: str = "") -> dict:
             "success": True,
             "message": "验证码已禁用"
         }
-    
+
     if not token or token == "disabled":
         if not turnstile_enabled:
             return {"success": True, "message": "验证码已禁用"}

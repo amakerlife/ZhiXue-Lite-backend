@@ -47,6 +47,10 @@ class Config:
     GEETEST_CAPTCHA_URL = os.environ.get("CAPTCHA_URL", "")
     FONT_PATH = os.environ.get("FONT_PATH", "")
 
+    # --- Rate limit 配置 ---
+    RATELIMIT_ENABLED = os.environ.get("RATELIMIT_ENABLED", "true").lower() == "true"
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "")
+
     # 定义每个配置类必需的环境变量
     REQUIRED_ENV_VARS = []
 
@@ -84,14 +88,11 @@ class TestingConfig(Config):
     DEBUG = True
     SECRET_KEY = os.environ.get("SECRET_KEY", "test-secret-key")
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
-    # SQLite 不支持连接池配置，使用空字典覆盖
+    # SQLite 不支持连接池配置
     SQLALCHEMY_ENGINE_OPTIONS = {}
-    # 禁用某些在测试中不需要的功能
-    WTF_CSRF_ENABLED = False
-    # 测试环境内存会话
+    # 内存会话
     SESSION_TYPE = "cachelib"
     SESSION_CACHELIB = SimpleCache()
-    # 禁用速率限制
     RATELIMIT_ENABLED = False
 
 

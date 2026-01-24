@@ -1,11 +1,13 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:17
     restart: unless-stopped
     stop_signal: SIGINT
     stop_grace_period: 1m
+    environment:
+      POSTGRES_USER: zhixuelite
+      POSTGRES_PASSWORD: zhixuelite_password
+      POSTGRES_DB: zhixuelite
     env_file:
       - .env
     volumes:
@@ -19,6 +21,18 @@ services:
       retries: 10
       start_period: 10s
 
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "volatile-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   web:
     build: .
     restart: unless-stopped
@@ -31,6 +45,8 @@ services:
       - ./cache:/app/cache
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: >
       sh -c "
@@ -49,5 +65,7 @@ services:
       - ./cache:/app/cache
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     command: python src/ZhiXueLite/task_worker/start.py
