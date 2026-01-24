@@ -208,7 +208,8 @@ class TaskManager:
                     else:
                         logger.error(f"Failed to terminate process for cancelling task {task.uuid}")
                 else:
-                    logger.warning(f"Process for cancelling task {task.uuid} not found or already terminated. Updating status.")
+                    logger.warning(
+                        f"Process for cancelling task {task.uuid} not found or already terminated. Updating status.")
                     with get_session() as session:
                         update_task_status(
                             session,
