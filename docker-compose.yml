@@ -1,11 +1,13 @@
-version: '3.8'
-
 services:
   db:
     image: postgres:17
     restart: unless-stopped
     stop_signal: SIGINT
     stop_grace_period: 1m
+    environment:
+      POSTGRES_USER: zhixuelite
+      POSTGRES_PASSWORD: zhixuelite_password
+      POSTGRES_DB: zhixuelite
     env_file:
       - .env
     volumes:
