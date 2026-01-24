@@ -1,11 +1,6 @@
 """
 pytest 配置文件
 """
-from app.database.models import User, School, ZhiXueStudentAccount, ZhiXueTeacherAccount
-from app.database import db as _db
-from app import create_app
-from unittest.mock import Mock
-from datetime import datetime
 import os
 import pytest
 
@@ -20,6 +15,12 @@ if "DATABASE_URL" not in os.environ:
 os.environ["TURNSTILE_ENABLED"] = "False"
 os.environ["CAPTCHA_URL"] = "http://fake-captcha.test"
 os.environ["FONT_PATH"] = "/fake/font/path"
+
+from datetime import datetime
+from unittest.mock import Mock
+from app import create_app
+from app.database import db as _db
+from app.database.models import User, School, ZhiXueStudentAccount, ZhiXueTeacherAccount
 
 
 # Flask 应用和数据库 Fixtures
