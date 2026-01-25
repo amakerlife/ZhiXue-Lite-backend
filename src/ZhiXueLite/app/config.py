@@ -66,6 +66,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    APP_ENV = "development"
     SECRET_KEY = os.environ.get("DEV_SECRET_KEY", "dev")
     SQLALCHEMY_DATABASE_URI = os.environ.get("DEV_DATABASE_URL", "")
 
@@ -75,6 +76,7 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+    APP_ENV = "production"
     SECRET_KEY = os.environ.get("PROD_SECRET_KEY", "")
     SQLALCHEMY_DATABASE_URI = os.environ.get("PROD_DATABASE_URL", "")
 
@@ -86,6 +88,7 @@ class TestingConfig(Config):
     """测试环境配置"""
     TESTING = True
     DEBUG = True
+    APP_ENV = "testing"
     SECRET_KEY = os.environ.get("SECRET_KEY", "test-secret-key")
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
     # SQLite 不支持连接池配置
