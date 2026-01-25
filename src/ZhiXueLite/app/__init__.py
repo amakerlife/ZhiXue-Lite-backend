@@ -27,6 +27,13 @@ def get_user_id():
     return get_remote_address()
 
 
+limiter = Limiter(
+    key_func=get_user_id,
+    storage_uri=config.RATELIMIT_STORAGE_URI or "memory://",
+    enabled=config.RATELIMIT_ENABLED,
+)
+
+
 def create_app():
     app = Flask("ZhiXueLite-backend")
     app.config.from_object(config)
@@ -52,11 +59,6 @@ def create_app():
 
     Session(app)
 
-    limiter = Limiter(
-        key_func=get_user_id,
-        storage_uri=config.RATELIMIT_STORAGE_URI or "memory://",
-        enabled=config.RATELIMIT_ENABLED,
-    )
     if limiter.enabled and config.RATELIMIT_STORAGE_URI == "memory://" and app.config["APP_ENV"] == "production":
         app.logger.warning(
             "Using in-memory rate limit storage in production is not recommended. "
