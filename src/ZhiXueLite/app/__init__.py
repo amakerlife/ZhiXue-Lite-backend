@@ -59,12 +59,17 @@ def create_app():
 
     Session(app)
 
+    if limiter.enabled and config.RATELIMIT_STORAGE_URI == "memory://" and app.config["APP_ENV"] == "production":
+        app.logger.warning(
+            "Using in-memory rate limit storage in production is not recommended. "
+            "That may lead to unexpected behavior when running multiple instances of the application. "
+            "Consider using Redis.")
     limiter.init_app(app)
 
     # 初始化缓存
     cache = Cache(app, config={
-        'CACHE_TYPE': 'SimpleCache',
-        'CACHE_DEFAULT_TIMEOUT': 300  # 5 分钟
+        "CACHE_TYPE": "SimpleCache",
+        "CACHE_DEFAULT_TIMEOUT": 600  # 10 分钟
     })
 
     # 自定义频率限制错误处理器
@@ -185,7 +190,7 @@ def create_app():
 
     @app.route("/statistics", methods=["GET"])
     def get_statistics():
-        """获取系统统计信息（公开端点，缓存 5 分钟）"""
+        """获取系统统计信息"""
         cached_stats = cache.get("statistics_data")
         if cached_stats is not None:
             return jsonify({
@@ -217,7 +222,7 @@ def create_app():
     @app.cli.command("init-db")
     def init_db_command():
         """清除所有数据"""
-        if not app.config["DEBUG"]:
+        if app.config["APP_ENV"] == "production":
             print("This command is strongly discouraged in production environments.")
         with app.app_context():
             if input("Are you sure you want to drop ALL tables? (y/N): ").lower() == "y":
