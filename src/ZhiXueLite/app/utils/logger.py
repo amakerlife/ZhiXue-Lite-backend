@@ -34,9 +34,10 @@ def setup_logger(app=None):
         log_file,
         level=log_level,
         rotation="00:00",
-        # retention="30 days",
-        compression="zip",
+        retention="60 days",
+        # compression="zip",
         encoding="utf-8",
+        enqueue=True,
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
     )
 
@@ -46,9 +47,10 @@ def setup_logger(app=None):
         error_log_file,
         level="ERROR",
         rotation="00:00",
-        # retention="90 days",
-        compression="zip",
+        retention="120 days",
+        # compression="zip",
         encoding="utf-8",
+        enqueue=True,
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
     )
 
