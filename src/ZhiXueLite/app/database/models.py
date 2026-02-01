@@ -425,6 +425,7 @@ class User(UserMixin, BaseDBClass):
             "id": self.id,
             "username": self.username,
             "email": self.email,
+            "email_verified": self.email_verified,
             "role": self.role,
             "permissions": self.permissions,
             "is_active": self.is_active,
