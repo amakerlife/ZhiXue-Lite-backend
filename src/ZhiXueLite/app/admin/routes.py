@@ -162,10 +162,11 @@ def unbind_user(zhixue_username, username):
 @admin_bp.route("/user/<int:user_id>", methods=["PUT"])
 def update_user(user_id):
     """管理员更新用户信息"""
+    # TODO: 限制传入字段类型
     user = db.get_or_404(User, user_id)
     data = request.get_json()
 
-    allowed_fields = ["email", "is_active", "permissions", "manual_school_id"]
+    allowed_fields = ["email", "is_active", "permissions", "manual_school_id", "email_verified"]
 
     for field in allowed_fields:
         if field in data:

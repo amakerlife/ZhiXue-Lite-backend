@@ -104,3 +104,20 @@ def test_user_unique_constraint(db):
 
     with pytest.raises(IntegrityError):
         db.session.commit()
+
+
+def test_user_to_dict_includes_email_verified(db):
+    """确保 user 序列化数据包含 email_verified"""
+    user = User(
+        username="dictuser",
+        email="dictuser@example.com",
+        role="user",
+        created_at=datetime.utcnow(),
+        email_verified=False,
+    )
+    user.set_password("password123")
+    db.session.add(user)
+    db.session.commit()
+
+    assert user.to_dict()["email_verified"] is False
+    assert user.to_dict_all()["email_verified"] is False

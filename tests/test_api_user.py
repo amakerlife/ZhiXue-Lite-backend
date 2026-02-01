@@ -24,6 +24,8 @@ def test_user_login_success(client, regular_user):
     assert data["message"] == "登录成功"
     assert "user" in data
     assert data["user"]["username"] == "testuser"
+    assert "email_verified" in data["user"]
+    assert data["user"]["email_verified"] is True
 
     # 验证 zhixue_info 结构
     assert "zhixue_info" in data["user"]
