@@ -113,6 +113,7 @@ def test_admin_list_users_success(client, admin_user, regular_user):
     user = data["users"][0]
     assert "username" in user
     assert "email" in user
+    assert "email_verified" in user
     assert "role" in user
     assert "last_login_ip" in user
 
@@ -205,6 +206,27 @@ def test_admin_update_user_permissions(client, admin_user, regular_user, db):
 
     db.session.refresh(regular_user)
     assert regular_user.permissions == "22222"
+
+
+def test_admin_update_user_email_verified(client, admin_user, unverified_user, db):
+    """
+    测试管理员更新用户邮箱验证状态
+    """
+    login_as_admin(client, admin_user)
+
+    assert unverified_user.email_verified is False
+
+    response = client.put(f"/admin/user/{unverified_user.id}", json={
+        "email_verified": True
+    })
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["user"]["email_verified"] is True
+
+    db.session.refresh(unverified_user)
+    assert unverified_user.email_verified is True
 
 
 def test_admin_update_user_invalid_permissions(client, admin_user, regular_user):
