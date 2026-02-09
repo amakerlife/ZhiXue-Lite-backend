@@ -5,7 +5,7 @@ from functools import wraps
 import os
 import time
 from openpyxl import Workbook
-from sqlalchemy import func, select, desc
+from sqlalchemy import func, literal, select, desc, union_all
 from app.database import db
 from app.database.models import Exam, ExamSchool, PermissionLevel, Score, User, UserExam, ZhiXueTeacherAccount, PermissionType
 from app.models.exceptions import FailedToGetTeacherAccountError
@@ -473,18 +473,26 @@ def get_user_exam_score(exam_id):
             "is_calculated": raw_score.is_calculated,  # 总分是否为计算得到
         })
 
-    # 每科校内总参考人数，仅支持 PostgreSQL，测试环境暂时无法使用
-    results = []
+    # 每科班校内总参考人数，仅支持 PostgreSQL，测试环境暂时无法使用
+    school_results = class_results = []
     if db.engine.name == "postgresql":
         stmt = (select(Score.subject_id, func.count(Score.id).label("participant_count"))).where(
             (Score.exam_id == exam_id) &
             (Score.school_id == school_id) &
             (Score.score.op("~")("^-?\\d+(\\.\\d+)?$"))  # 数字，包括负数整数和小数，不统计剔除
         ).group_by(Score.subject_id)
-        results = db.session.execute(stmt).all()
-    participant_counts = {row.subject_id: row.participant_count for row in results}
+        school_results = db.session.execute(stmt).all()
+        stmt = (select(Score.subject_id, func.count(Score.id).label("participant_count"))).where(
+            (Score.exam_id == exam_id) &
+            (Score.class_name == raw_scores[0].class_name) &
+            (Score.score.op("~")("^-?\\d+(\\.\\d+)?$"))
+        ).group_by(Score.subject_id)
+        class_results = db.session.execute(stmt).all()
+    school_participant_counts = {row.subject_id: row.participant_count for row in school_results}
+    class_participant_counts = {row.subject_id: row.participant_count for row in class_results}
     for score in scores:
-        score["participant_count"] = participant_counts.get(score["subject_id"], -1)  # -1 for unknown
+        score["school_participant_count"] = school_participant_counts.get(score["subject_id"], -1)  # -1 for unknown
+        score["class_participant_count"] = class_participant_counts.get(score["subject_id"], -1)
 
     # 参考学校
     is_multi_school = len(exam.schools) > 1
