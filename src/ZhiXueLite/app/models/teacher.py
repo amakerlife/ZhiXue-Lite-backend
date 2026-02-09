@@ -302,7 +302,7 @@ class ExtendedTeacherAccount(TeacherAccount):
                         subjects[score_info["subjectCode"]]["id"],
                         subjects[score_info["subjectCode"]]["score"],
                         int(subject_sort),
-                        is_calculated=False  # 各科成绩不是计算得到的
+                        is_calculated=False
                     )
 
                 # 处理总分

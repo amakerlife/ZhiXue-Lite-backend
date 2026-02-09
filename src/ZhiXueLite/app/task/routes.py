@@ -65,7 +65,7 @@ def get_user_tasks():
 @login_required
 def cancel_task(task_uuid):
     """
-    取消任务（仅限待处理状态的任务）
+    取消任务（仅限待处理和处理中的任务）
     """
     stmt = select(BackgroundTask).where(
         (BackgroundTask.uuid == task_uuid) & (BackgroundTask.user_id == current_user.id)

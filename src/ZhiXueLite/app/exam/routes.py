@@ -5,7 +5,7 @@ from functools import wraps
 import os
 import time
 from openpyxl import Workbook
-from sqlalchemy import select, desc
+from sqlalchemy import func, select, desc
 from app.database import db
 from app.database.models import Exam, ExamSchool, PermissionLevel, Score, User, UserExam, ZhiXueTeacherAccount, PermissionType
 from app.models.exceptions import FailedToGetTeacherAccountError
@@ -391,7 +391,13 @@ def fetch_exam(exam_id):
 @permission_required(PermissionType.VIEW_EXAM_DATA, "self")
 def get_user_exam_score(exam_id):
     """
-    获取指定考试中的分数和详细信息
+    获取指定考试中的分数和详细信息。
+
+    Args:
+        exam_id (str): 路径参数，考试 ID
+        student_id (str, optional): 查询参数，学生 ID，默认为当前用户绑定的智学网账号
+        student_name (str, optional): 查询参数，学生姓名，不可与 student_id 同时指定，且使用时必须指定学校 ID
+        school_id (str, optional): 查询参数，学校 ID，默认为当前用户所在学校
     """
     student_id = request.args.get("student_id", None)
     student_name = request.args.get("student_name", None)
@@ -447,6 +453,7 @@ def get_user_exam_score(exam_id):
             return jsonify({"success": False, "message": "请指定学校 ID"}), 400
         school_id = str(current_user.school_id)
 
+    # 构建成绩数据
     stmt = select(Score).where(
         (Score.exam_id == exam_id) &
         (Score.student_id == student_id) &
@@ -466,10 +473,23 @@ def get_user_exam_score(exam_id):
             "is_calculated": raw_score.is_calculated,  # 总分是否为计算得到
         })
 
-    # 根据权限返回不同的学校列表
+    # 每科校内总参考人数，仅支持 PostgreSQL，测试环境暂时无法使用
+    results = []
+    if db.engine.name == "postgresql":
+        stmt = (select(Score.subject_id, func.count(Score.id).label("participant_count"))).where(
+            (Score.exam_id == exam_id) &
+            (Score.school_id == school_id) &
+            (Score.score.op("~")("^-?\\d+(\\.\\d+)?$"))  # 数字，包括负数整数和小数，不统计剔除
+        ).group_by(Score.subject_id)
+        results = db.session.execute(stmt).all()
+    participant_counts = {row.subject_id: row.participant_count for row in results}
+    for score in scores:
+        score["participant_count"] = participant_counts.get(score["subject_id"], -1)  # -1 for unknown
+
+    # 参考学校
     is_multi_school = len(exam.schools) > 1
     if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
-        # GLOBAL 权限：返回所有学校信息
+        # GLOBAL 权限：返回所有参考学校
         schools = exam.get_schools_saved_status()
     elif school_id:
         # 指定了 school_id：只返回该学校信息

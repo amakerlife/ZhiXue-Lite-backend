@@ -151,7 +151,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
             session.flush()
 
         if not exam:
-            # 创建考试记录（支持联考）
+            # 创建考试记录
             exam_v = teacher.get_exam_detail(exam_id)
             exam = Exam(
                 id=exam_id,
@@ -198,7 +198,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                     (Score.student_id == student_score.user_id) &
                     (Score.exam_id == exam_id) &
                     (Score.subject_id == score.topicsetid) &
-                    (Score.school_id == school_id)  # 支持联考：区分不同学校的成绩
+                    (Score.school_id == school_id)
                 )
                 existing_score = session.scalar(stmt)
                 if existing_score and not force_refresh:
@@ -219,7 +219,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                 new_score = Score(
                     student_id=student_score.user_id,
                     exam_id=exam_id,
-                    school_id=school_id,  # 支持联考：记录成绩所属学校
+                    school_id=school_id,
                     subject_id=score.topicsetid,
                     subject_name=score.name if score.subjectcode != -1 else "总分",
                     class_name=student_score.class_name,
@@ -237,7 +237,6 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
                 progress = int(50 + (i + 1) / total_students * 49)
                 update_task_progress(session, task_id, progress, f"已处理 {i + 1}/{total_students} 个学生")
 
-        # 支持联考：标记该学校的考试数据已保存
         exam_school.is_saved = True
 
         update_task_progress(session, task_id, 100, "任务完成")

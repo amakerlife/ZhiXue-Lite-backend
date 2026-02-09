@@ -227,7 +227,6 @@ class Score(BaseDBClass):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     student_id: Mapped[str] = mapped_column(String(50), ForeignKey("students.id"))
     exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"))
-    # 新增：支持联考场景，区分不同学校的成绩数据
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"))
     subject_id: Mapped[str] = mapped_column(String(50))
     subject_name: Mapped[str] = mapped_column(String(50))
