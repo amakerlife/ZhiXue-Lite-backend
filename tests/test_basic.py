@@ -53,13 +53,11 @@ def test_statistics_endpoint(client, db, regular_user, admin_user, test_school):
         id="exam_001",
         name="期中考试",
         created_at=datetime.utcnow().timestamp(),
-        is_saved=False
     )
     exam2 = Exam(
         id="exam_002",
         name="期末考试",
         created_at=datetime.utcnow().timestamp(),
-        is_saved=False
     )
     db.session.add_all([exam1, exam2])
     db.session.commit()
