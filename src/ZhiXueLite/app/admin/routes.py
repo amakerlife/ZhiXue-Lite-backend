@@ -213,7 +213,7 @@ def clear_cache():
         return jsonify({"success": True, "message": "缓存已清除"}), 200
 
     except Exception as e:
-        return jsonify({"success": False, "message": "清除缓存失败", "error": str(e)}), 500
+        return jsonify({"success": False, "message": "清除缓存失败"}), 500
 
 
 @admin_bp.route("/su/<string:username>", methods=["POST"])

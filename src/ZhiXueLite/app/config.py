@@ -38,6 +38,9 @@ class Config:
     SESSION_PERMANENT = True  # 设置会话为永久
     SESSION_USE_SIGNER = True  # 使用签名
     PERMANENT_SESSION_LIFETIME = timedelta(days=30)  # 会话过期时间
+    SESSION_COOKIE_SECURE = True  # 仅 HTTPS 传输
+    SESSION_COOKIE_HTTPONLY = True  # 禁止 JavaScript 访问 Cookie
+    SESSION_COOKIE_SAMESITE = "Lax"  # 防止 CSRF
 
     # --- 日志配置 ---
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
@@ -69,6 +72,8 @@ class DevelopmentConfig(Config):
     APP_ENV = "development"
     SECRET_KEY = os.environ.get("DEV_SECRET_KEY", "dev")
     SQLALCHEMY_DATABASE_URI = os.environ.get("DEV_DATABASE_URL", "")
+
+    SESSION_COOKIE_SECURE = False
 
     # 开发环境必需的环境变量
     REQUIRED_ENV_VARS = ["DEV_DATABASE_URL", "CAPTCHA_URL", "FONT_PATH"]
