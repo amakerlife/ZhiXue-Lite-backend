@@ -95,8 +95,8 @@ def get_exam_list():
     - start_time: 开始日期，时间戳，默认 0（不限制）
     - end_time: 结束日期，时间戳，默认 0（不限制）
     """
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
     query = request.args.get("query", "", type=str)
     scope = request.args.get("scope", "self", type=str)
     school_id = request.args.get("school_id", "", type=str)

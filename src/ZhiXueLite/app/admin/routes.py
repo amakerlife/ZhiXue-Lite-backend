@@ -27,8 +27,8 @@ def is_admin():
 @admin_bp.route("/list/schools", methods=["GET"])
 def list_schools():
     """列出所有学校"""
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
     query = request.args.get("query", "", type=str)
 
     stmt = select(School).order_by(School.id.asc())
@@ -47,8 +47,8 @@ def list_schools():
 @admin_bp.route("/list/users", methods=["GET"])
 def list_users():
     """列出所有用户"""
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
     query = request.args.get("query", "", type=str)
 
     stmt = select(User).order_by(User.id.asc())
@@ -67,8 +67,8 @@ def list_users():
 @admin_bp.route("/list/zhixue_accounts", methods=["GET"])
 def list_zhixue_accounts():
     """列出所有智学网学生账户"""
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
     query = request.args.get("query", "", type=str)
 
     stmt = select(ZhiXueStudentAccount).order_by(ZhiXueStudentAccount.id.asc())
@@ -87,8 +87,8 @@ def list_zhixue_accounts():
 @admin_bp.route("/list/exams", methods=["GET"])
 def list_exams():
     """列出所有考试"""
-    page = request.args.get("page", 1, type=int)
-    per_page = request.args.get("per_page", 10, type=int)
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
     query = request.args.get("query", "", type=str)
 
     stmt = select(Exam).order_by(Exam.created_at.desc(), Exam.id.desc())
@@ -113,8 +113,8 @@ def list_exams():
 @admin_bp.route("/zhixue/<string:zhixue_username>/users", methods=["GET"])
 def list_users_by_zhixue(zhixue_username):
     """根据智学网账号列出绑定的用户"""
-    # page = request.args.get("page", 1, type=int)
-    # per_page = request.args.get("per_page", 10, type=int)
+    # page = max(1, request.args.get("page", 1, type=int))
+    # per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
 
     zhixue_account = db.session.scalar(select(ZhiXueStudentAccount).where(
         ZhiXueStudentAccount.username == zhixue_username))
