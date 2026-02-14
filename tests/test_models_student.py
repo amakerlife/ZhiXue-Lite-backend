@@ -7,8 +7,10 @@
 - ExtendedStudentAccount 类的方法
 """
 import base64
+import json
 from unittest.mock import Mock, patch
 import pytest
+from requests.cookies import RequestsCookieJar
 from zhixuewang.exceptions import UserOrPassError
 from app.models.student import ExtendedStudentAccount, login_student, login_student_session
 
@@ -16,12 +18,12 @@ from app.models.student import ExtendedStudentAccount, login_student, login_stud
 def create_mock_session_with_cookies():
     """创建包含必要 cookie 的 mock session"""
     mock_session = Mock()
-    # zhixuewang 需要 uname cookie (base64 encoded)
-    mock_session.cookies = {
-        "uname": base64.b64encode("testuser".encode()).decode(),
-        "token": "abc123",
-        "sessionid": "xyz789"
-    }
+    jar = RequestsCookieJar()
+    jar.set("uname", base64.b64encode("testuser".encode()).decode(),
+            domain=".zhixue.com", path="/")
+    jar.set("token", "abc123", domain=".zhixue.com", path="/")
+    jar.set("sessionid", "xyz789", domain=".zhixue.com", path="/")
+    mock_session.cookies = jar
     return mock_session
 
 
@@ -29,20 +31,26 @@ class TestExtendedStudentAccount:
     """测试 ExtendedStudentAccount 类"""
 
     def test_get_cookie_success(self):
-        """测试成功获取 Cookie 字符串"""
+        """测试成功获取 Cookie 字符串（JSON 格式，保留域名信息）"""
         mock_session = create_mock_session_with_cookies()
 
         # 创建学生账号实例
         account = ExtendedStudentAccount(mock_session)
 
         cookie = account.get_cookie()
+        data = json.loads(cookie)
 
-        # 验证包含所有 cookie 项
-        assert "token=abc123" in cookie
-        assert "sessionid=xyz789" in cookie
+        # 验证 JSON 格式且包含所有 cookie 项及域名信息
+        assert isinstance(data, list)
+        cookie_map = {c["name"]: c for c in data}
+        assert "token" in cookie_map
+        assert cookie_map["token"]["value"] == "abc123"
+        assert cookie_map["token"]["domain"] == ".zhixue.com"
+        assert "sessionid" in cookie_map
+        assert cookie_map["sessionid"]["value"] == "xyz789"
 
     def test_get_cookie_no_session(self):
-        """测试 get_session() 返回 None 时返回空字符串"""
+        """测试 get_session() 返回 None 时返回空 JSON 列表"""
         mock_session = create_mock_session_with_cookies()
         account = ExtendedStudentAccount(mock_session)
 
@@ -51,7 +59,7 @@ class TestExtendedStudentAccount:
 
         cookie = account.get_cookie()
 
-        assert cookie == ""
+        assert cookie == "[]"
 
     @patch("app.models.student.update_login_status")
     def test_update_login_status(self, mock_update_login_status):

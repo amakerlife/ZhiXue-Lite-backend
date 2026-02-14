@@ -10,6 +10,7 @@ import base64
 import json
 from unittest.mock import Mock, patch
 import pytest
+from requests.cookies import RequestsCookieJar
 from zhixuewang.exceptions import UserOrPassError
 from app.models.teacher import ExtendedTeacherAccount, login_teacher, login_teacher_session
 from app.models.dataclasses import StudentScoreInfo
@@ -19,12 +20,12 @@ from app.models.exceptions import ZhixueError
 def create_mock_teacher_session():
     """创建包含必要 cookie 的 mock teacher session"""
     mock_session = Mock()
-    # zhixuewang 需要 uname cookie (base64 encoded)
-    mock_session.cookies = {
-        "uname": base64.b64encode("teacher_user".encode()).decode(),
-        "token": "teacher_token_123",
-        "sessionid": "teacher_session_xyz"
-    }
+    jar = RequestsCookieJar()
+    jar.set("uname", base64.b64encode("teacher_user".encode()).decode(),
+            domain=".zhixue.com", path="/")
+    jar.set("token", "teacher_token_123", domain=".zhixue.com", path="/")
+    jar.set("sessionid", "teacher_session_xyz", domain=".zhixue.com", path="/")
+    mock_session.cookies = jar
     return mock_session
 
 
@@ -32,18 +33,24 @@ class TestExtendedTeacherAccount:
     """测试 ExtendedTeacherAccount 类"""
 
     def test_get_cookie_success(self):
-        """测试成功获取 Cookie 字符串"""
+        """测试成功获取 Cookie 字符串（JSON 格式，保留域名信息）"""
         mock_session = create_mock_teacher_session()
 
         account = ExtendedTeacherAccount(mock_session)
 
         cookie = account.get_cookie()
+        data = json.loads(cookie)
 
-        assert "token=teacher_token_123" in cookie
-        assert "sessionid=teacher_session_xyz" in cookie
+        assert isinstance(data, list)
+        cookie_map = {c["name"]: c for c in data}
+        assert "token" in cookie_map
+        assert cookie_map["token"]["value"] == "teacher_token_123"
+        assert cookie_map["token"]["domain"] == ".zhixue.com"
+        assert "sessionid" in cookie_map
+        assert cookie_map["sessionid"]["value"] == "teacher_session_xyz"
 
     def test_get_cookie_no_session(self):
-        """测试 get_session() 返回 None 时返回空字符串"""
+        """测试 get_session() 返回 None 时返回空 JSON 列表"""
         mock_session = create_mock_teacher_session()
         account = ExtendedTeacherAccount(mock_session)
 
@@ -51,7 +58,7 @@ class TestExtendedTeacherAccount:
 
         cookie = account.get_cookie()
 
-        assert cookie == ""
+        assert cookie == "[]"
 
     @patch("app.models.teacher.update_login_status")
     def test_update_login_status(self, mock_update_login_status):

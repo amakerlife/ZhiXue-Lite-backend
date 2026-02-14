@@ -305,7 +305,7 @@ def update_login_status(account):
     return True
 
 
-def set_user_session(cookie: str) -> Session | None:
+def set_user_session(cookie: str) -> Session:
     """
     通过 cookie 获取用户 session
 
@@ -313,7 +313,7 @@ def set_user_session(cookie: str) -> Session | None:
         cookie (str): 用户的 cookie 字符串，JSON 格式
 
     Returns:
-        Session: 设置了 cookie 的会话对象，如果 cookie 无效返回 None
+        Session: 会话对象
     """
     session = get_basic_session()
 
