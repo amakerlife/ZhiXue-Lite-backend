@@ -1,3 +1,4 @@
+import re
 from flask import Blueprint, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import select
@@ -42,6 +43,8 @@ def signup():
             "message": verification_result.get("message", "验证码验证失败")
         }), 400
 
+    if not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", data["email"]):
+        return jsonify({"success": False, "message": "邮箱格式不合法"}), 400
     if "@" in data["username"]:
         return jsonify({"success": False, "message": "用户名不合法"}), 400
     if db.session.scalar(select(User).where(User.username == data["username"])):
@@ -125,6 +128,8 @@ def login():
 
     if "@" in login_field:
         # 邮箱
+        if not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", login_field):
+            return jsonify({"success": False, "message": "参数格式不合法"}), 400
         user = db.session.scalar(select(User).where(User.email == login_field))
         if not user or not user.check_password(password):
             return jsonify({"success": False, "message": "用户名或密码错误"}), 401
