@@ -48,7 +48,6 @@ class School(BaseDBClass):
     teacher: Mapped["ZhiXueTeacherAccount"] = relationship("ZhiXueTeacherAccount", back_populates="school")
     student_accounts: Mapped[list["ZhiXueStudentAccount"]] = relationship(
         "ZhiXueStudentAccount", back_populates="school")
-    exams: Mapped[list["Exam"]] = relationship("Exam", back_populates="school")
 
 
 class ZhiXueTeacherAccount(BaseDBClass):
@@ -141,18 +140,10 @@ class Exam(BaseDBClass):
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     name: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[float] = mapped_column(Float)
-    # DEPRECATED: is_saved 已迁移到 ExamSchool.is_saved（支持联考后每个学校独立保存状态）
-    # 保留此字段用于向下兼容，数据库迁移时会删除
-    is_saved: Mapped[bool] = mapped_column(Boolean, default=False)
-    # DEPRECATED: school_id 已改为多对多关系（通过 ExamSchool 表）
-    # 保留此字段用于向下兼容，新代码应使用 schools 关系
-    school_id: Mapped[Optional[str]] = mapped_column(String(50), ForeignKey("schools.id"), nullable=True)
 
     user_exams: Mapped[list["UserExam"]] = relationship("UserExam", back_populates="exam")
     scores: Mapped[list["Score"]] = relationship("Score", back_populates="exam")
-    # DEPRECATED: 保留单一 school 关系用于向下兼容
-    school: Mapped[Optional["School"]] = relationship("School", foreign_keys=[school_id], back_populates="exams")
-    # 新的多对多关系
+    # 多对多关系
     schools: Mapped[list["ExamSchool"]] = relationship("ExamSchool", back_populates="exam")
 
     __table_args__ = (
