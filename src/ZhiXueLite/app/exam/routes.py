@@ -5,13 +5,13 @@ from functools import wraps
 import os
 import time
 from openpyxl import Workbook
-from sqlalchemy import func, literal, select, desc, union_all
+from sqlalchemy import func, select
 from app.database import db
 from app.database.models import Exam, ExamSchool, PermissionLevel, Score, User, UserExam, ZhiXueTeacherAccount, PermissionType
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
 from app.task.repository import create_task
-from app.utils.paginate import paginated_json
+from app.utils.paginate import paginate_query
 from app import limiter
 from flask_limiter.util import get_remote_address
 
@@ -133,9 +133,8 @@ def get_exam_list():
     elif not (start_time == 0 and end_time == 0):
         return jsonify({"success": False, "message": "参数不合法"}), 400
 
-    exams = db.session.scalars(stmt.order_by(desc(Exam.created_at))).all()
-
-    paginated_exams = paginated_json(exams, page, per_page)
+    stmt = stmt.order_by(Exam.created_at.desc(), Exam.id.desc())
+    paginated_exams = paginate_query(stmt, page, per_page)
     exam_list = []
 
     has_global_permission = current_user.has_permission(

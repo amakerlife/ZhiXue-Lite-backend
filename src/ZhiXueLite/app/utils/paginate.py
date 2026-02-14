@@ -1,28 +1,22 @@
-def paginate(items, page, per_page):
-    if not isinstance(items, list):
-        raise ValueError("Items must be a list.")
-
-    if page < 1 or per_page < 1:
-        raise ValueError("Page and per_page must be greater than 0.")
-
-    start = (page - 1) * per_page
-    end = start + per_page
-    paginated_items = items[start:end]
-
-    return paginated_items, len(items), end
+from sqlalchemy import func, select
+from app.database import db
 
 
-def paginated_json(items, page, per_page):
-    """将数据转换为分页的 JSON 格式"""
-    paginated_items, total, end = paginate(items, page, per_page)
+def paginate_query(stmt, page, per_page):
+    """数据库级别分页，stmt 应已包含 where/order_by 条件"""
+    total = db.session.scalar(select(func.count()).select_from(stmt.subquery()))
+
+    stmt = stmt.limit(per_page).offset((page - 1) * per_page)
+    items = db.session.scalars(stmt).all()
+
     return {
-        "items": paginated_items,
+        "items": items,
         "pagination": {
             "page": page,
             "per_page": per_page,
             "total": total,
             "pages": (total + per_page - 1) // per_page,
             "has_prev": page > 1,
-            "has_next": end < total
+            "has_next": page * per_page < total
         },
     }

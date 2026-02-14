@@ -1,12 +1,10 @@
-from functools import wraps
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
-from loguru import logger
 from sqlalchemy import select
 from app.database import db
 from app.database.models import School, ZhiXueTeacherAccount
 from app.models.teacher import login_teacher
-from app.utils.paginate import paginated_json
+from app.utils.paginate import paginate_query
 
 teacher_bp = Blueprint("teacher", __name__)
 
@@ -33,9 +31,9 @@ def get_teacher_list():
         stmt = stmt.where(ZhiXueTeacherAccount.username.contains(query) |
                           School.name.contains(query))
 
-    teachers = db.session.scalars(stmt).all()
+    stmt = stmt.order_by(ZhiXueTeacherAccount.id.asc())
 
-    paginated_teachers = paginated_json(teachers, page, per_page)
+    paginated_teachers = paginate_query(stmt, page, per_page)
 
     teacher_list = [{
         "id": teacher.id,

@@ -5,7 +5,7 @@ from flask_login import login_required, current_user, login_user
 from sqlalchemy import select
 from app.database import db
 from app.database.models import Exam, School, ZhiXueStudentAccount, User
-from app.utils.paginate import paginated_json
+from app.utils.paginate import paginate_query
 from loguru import logger
 
 admin_bp = Blueprint("admin", __name__)
@@ -31,12 +31,10 @@ def list_schools():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(School)
+    stmt = select(School).order_by(School.id.asc())
     if query:
         stmt = stmt.where(School.name.contains(query) | School.id.contains(query))
-
-    schools = db.session.scalars(stmt).all()
-    paginated_schools = paginated_json(schools, page, per_page)
+    paginated_schools = paginate_query(stmt, page, per_page)
     school_list = [{"id": school.id, "name": school.name} for school in paginated_schools["items"]]
 
     return jsonify({
@@ -56,9 +54,7 @@ def list_users():
     stmt = select(User).order_by(User.id.asc())
     if query:
         stmt = stmt.where(User.username.contains(query))
-
-    users = db.session.scalars(stmt).all()
-    paginated_users = paginated_json(users, page, per_page)
+    paginated_users = paginate_query(stmt, page, per_page)
     user_list = [user.to_dict_all() for user in paginated_users["items"]]
 
     return jsonify({
@@ -75,12 +71,10 @@ def list_zhixue_accounts():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(ZhiXueStudentAccount)
+    stmt = select(ZhiXueStudentAccount).order_by(ZhiXueStudentAccount.id.asc())
     if query:
         stmt = stmt.where(ZhiXueStudentAccount.username.contains(query))
-
-    zhixue_accounts = db.session.scalars(stmt).all()
-    paginated_accounts = paginated_json(zhixue_accounts, page, per_page)
+    paginated_accounts = paginate_query(stmt, page, per_page)
     account_list = [account.to_dict_all() for account in paginated_accounts["items"]]
 
     return jsonify({
@@ -97,12 +91,10 @@ def list_exams():
     per_page = request.args.get("per_page", 10, type=int)
     query = request.args.get("query", "", type=str)
 
-    stmt = select(Exam).order_by(Exam.created_at.desc())
+    stmt = select(Exam).order_by(Exam.created_at.desc(), Exam.id.desc())
     if query:
         stmt = stmt.where(Exam.name.contains(query) | Exam.id.contains(query))
-
-    exams = db.session.scalars(stmt).all()
-    paginated_exams = paginated_json(exams, page, per_page)
+    paginated_exams = paginate_query(stmt, page, per_page)
     exam_list = [
         {
             "id": exam.id,

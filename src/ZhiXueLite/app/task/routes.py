@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
-from sqlalchemy import select, desc
+from sqlalchemy import select
 from app.database import db
 from app.database.models import BackgroundTask, TaskStatus
-from app.utils.paginate import paginated_json
+from app.utils.paginate import paginate_query
 from . import repository as task_repo
 
 
@@ -49,9 +49,8 @@ def get_user_tasks():
         except ValueError:
             return jsonify({"success": False, "message": "无效的状态值"}), 400
 
-    tasks = db.session.scalars(stmt.order_by(desc(BackgroundTask.created_at))).all()
-
-    paginated_tasks = paginated_json(tasks, page, per_page)
+    stmt = stmt.order_by(BackgroundTask.created_at.desc(), BackgroundTask.id.desc())
+    paginated_tasks = paginate_query(stmt, page, per_page)
     task_list = [task.to_dict() for task in paginated_tasks["items"]]
 
     return jsonify({
