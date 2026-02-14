@@ -447,8 +447,7 @@ class ExtendedTeacherAccount(TeacherAccount):
                 })
 
         sheet_images = data["sheetImages"]  # 原卷链接
-        paper_type = json.loads(data["answerSheetLocation"])[
-            "paperType"]  # 纸张类型
+        paper_type = json.loads(data["answerSheetLocation"])["paperType"]  # 纸张类型
 
         return topic_mapping, page_positions, objective_answer, answer_details, sheet_images, paper_type, is_absolute
 
@@ -506,7 +505,7 @@ class ExtendedTeacherAccount(TeacherAccount):
         获取某个考试的简单详细情况
 
         Args:
-            exam_id (str): 为需要查询考试的id
+            exam_id (str): 为需要查询考试的 id
         Return:
             Exam
         """

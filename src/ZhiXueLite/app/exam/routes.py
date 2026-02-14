@@ -473,7 +473,7 @@ def get_user_exam_score(exam_id):
             "is_calculated": raw_score.is_calculated,  # 总分是否为计算得到
         })
 
-    # 每科班校内总参考人数，仅支持 PostgreSQL，测试环境暂时无法使用
+    # 每科班校内总参考人数，仅支持 PostgreSQL，本地测试环境暂时无法使用
     school_results = class_results = []
     if db.engine.name == "postgresql" and len(raw_scores) > 0:
         stmt = (select(Score.subject_id, func.count(Score.id).label("participant_count"))).where(

@@ -420,4 +420,4 @@ def resend_verification_email():
         hide=True
     )
 
-    return jsonify({"success": True, "message": "验证邮件已发送，请检查您的邮箱"}), 200
+    return jsonify({"success": True, "message": "验证邮件已发送，请检查你的邮箱（包括垃圾邮件）"}), 200

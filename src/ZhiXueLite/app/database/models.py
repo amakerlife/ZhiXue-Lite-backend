@@ -130,7 +130,6 @@ class ExamSchool(BaseDBClass):
 
     __table_args__ = (
         UniqueConstraint("exam_id", "school_id"),
-        Index("ix_exam_schools_exam", "exam_id"),
         Index("ix_exam_schools_school", "school_id"),
     )
 
@@ -157,7 +156,6 @@ class Exam(BaseDBClass):
     schools: Mapped[list["ExamSchool"]] = relationship("ExamSchool", back_populates="exam")
 
     __table_args__ = (
-        Index("ix_exams_school_created", "school_id", "created_at"),
         Index("ix_exams_created", "created_at"),
     )
 
@@ -247,7 +245,7 @@ class Score(BaseDBClass):
     __table_args__ = (
         Index("ix_scores_exam_student", "exam_id", "student_id"),
         Index("ix_scores_exam_school", "exam_id", "school_id"),
-        Index("ix_scores_exam_sort", "exam_id", "sort"),
+        Index("ix_scores_exam_class", "exam_id", "class_name")
     )
 
 
@@ -287,7 +285,6 @@ class BackgroundTask(BaseDBClass):
 
     __table_args__ = (
         Index("ix_background_tasks_status_created", "status", "created_at"),
-        Index("ix_background_tasks_uuid_user", "uuid", "user_id"),
         Index("ix_background_tasks_user_created", "user_id", "created_at"),
     )
 
