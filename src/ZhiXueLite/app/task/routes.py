@@ -37,7 +37,7 @@ def get_user_tasks():
     获取用户的任务列表
     """
     page = max(1, request.args.get("page", 1, type=int))
-    per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
+    per_page = max(1, min(20, request.args.get("per_page", 10, type=int)))
     status_filter = request.args.get("status")
 
     stmt = select(BackgroundTask).where((BackgroundTask.user_id == current_user.id) & (BackgroundTask.hide.is_(False)))

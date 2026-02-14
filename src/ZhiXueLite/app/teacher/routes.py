@@ -23,7 +23,7 @@ def is_admin():
 def get_teacher_list():
     """获取教师账号列表"""
     page = max(1, request.args.get("page", 1, type=int))
-    per_page = max(1, min(10, request.args.get("per_page", 10, type=int)))
+    per_page = max(1, min(20, request.args.get("per_page", 10, type=int)))
     query = request.args.get("query", "", type=str)
 
     stmt = select(ZhiXueTeacherAccount).join(School)
