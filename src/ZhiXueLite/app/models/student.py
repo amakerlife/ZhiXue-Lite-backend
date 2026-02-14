@@ -1,3 +1,4 @@
+from flask import json
 from zhixuewang.student import StudentAccount
 
 from app.utils.login_zhixue import set_user_session, update_login_status, get_session_by_captcha
@@ -19,14 +20,19 @@ class ExtendedStudentAccount(StudentAccount):
 
     def get_cookie(self) -> str:
         """
-        获取 Cookie 字符串
+        获取 Cookie 字符串（JSON 格式）
         """
         if not self.get_session():
-            return ""
-        cookie_items = []
-        for name, value in self.get_session().cookies.items():
-            cookie_items.append(f"{name}={value}")
-        return "; ".join(cookie_items)
+            return "[]"
+        cookies = []
+        for cookie in self.get_session().cookies:
+            cookies.append({
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path
+            })
+        return json.dumps(cookies)
 
 
 def login_student(username: str, password: str, method: str = "changyan") -> ExtendedStudentAccount:

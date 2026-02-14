@@ -26,14 +26,19 @@ class ExtendedTeacherAccount(TeacherAccount):
 
     def get_cookie(self) -> str:
         """
-        获取 Cookie 字符串
+        获取 Cookie 字符串（JSON 格式）
         """
         if not self.get_session():
-            return ""
-        cookie_items = []
-        for name, value in self.get_session().cookies.items():
-            cookie_items.append(f"{name}={value}")
-        return "; ".join(cookie_items)
+            return "[]"
+        cookies = []
+        for cookie in self.get_session().cookies:
+            cookies.append({
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path
+            })
+        return json.dumps(cookies)
 
     def get_exam_list_selections(self) -> dict[str, str]:  # TODO: 针对不同学期等配置的差异化响应
         """

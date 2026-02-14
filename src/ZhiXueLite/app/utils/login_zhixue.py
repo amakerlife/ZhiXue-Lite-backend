@@ -310,7 +310,7 @@ def set_user_session(cookie: str) -> Session | None:
     通过 cookie 获取用户 session
 
     Args:
-        cookie (str): 用户的 cookie 字符串，标准 HTTP cookie 格式
+        cookie (str): 用户的 cookie 字符串，JSON 格式
 
     Returns:
         Session: 设置了 cookie 的会话对象，如果 cookie 无效返回 None
@@ -318,12 +318,16 @@ def set_user_session(cookie: str) -> Session | None:
     session = get_basic_session()
 
     try:
+        data = json.loads(cookie)
+        if not isinstance(data, list):
+            raise ValueError("Cookie data is not in expected JSON list format; falling back to legacy format")
+        for c in data:
+            session.cookies.set(c["name"], c["value"],
+                                domain=c.get("domain", ""), path=c.get("path", "/"))
+    except (ValueError, json.JSONDecodeError):
         for item in cookie.split(";"):
             if "=" in item:
                 name, value = item.strip().split("=", 1)
                 session.cookies.set(name, value)
-        return session
 
-    except Exception as e:
-        logger.error(f"Failed to set cookie: {str(e)}")
-        return None
+    return session
