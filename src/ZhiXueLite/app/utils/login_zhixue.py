@@ -198,6 +198,8 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
     password = gen_encrypted_password(password)
     session = get_basic_session()
 
+    actual_method = ""  # 实际使用的登录方式
+
     if username.isdigit() and len(username) == 8:
         login_method = "zhixue"
 
@@ -207,6 +209,7 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
             captcha_id, session = login_via_zhixue(
                 username, origin_password, captcha_data, session
             )
+            actual_method = "zhixue"
         except LoginError as e:
             try:
                 if (e.__str__().find("密码错误") != -1):
@@ -217,6 +220,7 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
                 captcha_id, session = login_via_changyan(
                     username, password, captcha_data, session
                 )
+                actual_method = "changyan"
             except LoginError as e:
                 logger.info(f"Failed to login(web): {e}")
                 raise e
@@ -228,6 +232,7 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
             captcha_id, session = login_via_changyan(
                 username, password, captcha_data, session
             )
+            actual_method = "changyan"
         except LoginError as e:
             try:
                 if (e.__str__().find("密码错误") != -1):
@@ -236,6 +241,7 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
                 captcha_id, session = login_via_zhixue(
                     username, origin_password, captcha_data, session
                 )
+                actual_method = "zhixue"
             except LoginError as e:
                 logger.info(f"Failed to login(web): {e}")
                 raise e
@@ -286,6 +292,7 @@ def get_session_by_captcha(username: str, password: str, login_method: str = "ch
     )
     session.cookies.set("uname", base64.b64encode(username.encode()).decode())
     session.cookies.set("pwd", base64.b64encode(origin_password.encode()).decode())
+    session.cookies.set("login_method", actual_method)
     return session
 
 
@@ -301,7 +308,8 @@ def update_login_status(account):
         return False
     # session 过期
     password = base64.b64decode(account._session.cookies["pwd"].encode()).decode()
-    account._session = get_session_by_captcha(account.username, password)
+    login_method = account._session.cookies.get("login_method", "changyan")
+    account._session = get_session_by_captcha(account.username, password, login_method)
     return True
 
 

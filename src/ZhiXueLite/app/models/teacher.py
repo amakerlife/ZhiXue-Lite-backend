@@ -561,7 +561,7 @@ def login_teacher_session(cookie: str) -> ExtendedTeacherAccount:
     teacher_account = account.set_base_info().set_advanced_info()
     if updated:
         try:
-            # 检查是否在Flask上下文中，如果是则更新数据库中的 cookie
+            # 检查是否在 Flask 上下文中，如果是则更新数据库中的 cookie
             from flask import has_app_context
             if has_app_context():
                 from app.database import db
@@ -569,6 +569,9 @@ def login_teacher_session(cookie: str) -> ExtendedTeacherAccount:
                 account = db.session.get(ZhiXueTeacherAccount, teacher_account.id)
                 if account:
                     account.cookie = teacher_account.get_cookie()
+                    actual_method = teacher_account.get_session().cookies.get("login_method") or account.login_method
+                    if account.login_method != actual_method:
+                        account.login_method = actual_method
                     db.session.commit()
         except ImportError:
             pass

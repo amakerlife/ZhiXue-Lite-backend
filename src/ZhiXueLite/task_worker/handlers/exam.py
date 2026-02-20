@@ -43,8 +43,9 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
             raise ValueError("User cookie is empty")
 
         student_account = login_student_session(user.zhixue.cookie)
-        user.zhixue.cookie = student_account.get_cookie()
-        session.flush()
+        if user.zhixue.cookie != student_account.get_cookie():
+            user.zhixue.cookie = student_account.get_cookie()
+            session.flush()
 
         update_task_progress(session, task_id, 40, "正在拉取考试数据...")
         exams = student_account.get_exams()
@@ -148,6 +149,9 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         teacher = login_teacher_session(teacher_account.cookie)
         if teacher_account.cookie != teacher.get_cookie():
             teacher_account.cookie = teacher.get_cookie()
+            actual_method = teacher.get_session().cookies.get("login_method") or teacher_account.login_method
+            if teacher_account.login_method != actual_method:
+                teacher_account.login_method = actual_method
             session.flush()
 
         if not exam:
@@ -259,6 +263,9 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
         teacher = login_teacher_session(teacher_account.cookie)
         if teacher_account.cookie != teacher.get_cookie():
             teacher_account.cookie = teacher.get_cookie()
+            actual_method = teacher.get_session().cookies.get("login_method") or teacher_account.login_method
+            if teacher_account.login_method != actual_method:
+                teacher_account.login_method = actual_method
             session.flush()
 
         update_task_progress(session, task_id, 30, "正在拉取考试数据...")

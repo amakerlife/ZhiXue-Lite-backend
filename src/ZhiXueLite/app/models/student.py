@@ -66,7 +66,7 @@ def login_student_session(cookie: str) -> ExtendedStudentAccount:
     student_account = account.set_base_info()
     if updated:
         try:
-            # 检查是否在Flask上下文中
+            # 检查是否在 Flask 上下文中
             from flask import has_app_context
             if has_app_context():
                 from app.database import db
