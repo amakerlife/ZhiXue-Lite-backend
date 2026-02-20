@@ -7,6 +7,7 @@ from app.database.models import Exam, ExamSchool, Score, Student, UserExam, User
 from app.models.student import login_student_session
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
+from app.utils.crypto import decrypt, encrypt
 from task_worker.repository import update_task_progress
 from loguru import logger
 
@@ -43,8 +44,8 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
             raise ValueError("User cookie is empty")
 
         student_account = login_student_session(user.zhixue.cookie)
-        if user.zhixue.cookie != student_account.get_cookie():
-            user.zhixue.cookie = student_account.get_cookie()
+        if decrypt(user.zhixue.cookie) != student_account.get_cookie():
+            user.zhixue.cookie = encrypt(student_account.get_cookie())
             session.flush()
 
         update_task_progress(session, task_id, 40, "正在拉取考试数据...")
@@ -147,8 +148,8 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
             school_id = teacher_account.school_id
 
         teacher = login_teacher_session(teacher_account.cookie)
-        if teacher_account.cookie != teacher.get_cookie():
-            teacher_account.cookie = teacher.get_cookie()
+        if decrypt(teacher_account.cookie) != teacher.get_cookie():
+            teacher_account.cookie = encrypt(teacher.get_cookie())
             actual_method = teacher.get_session().cookies.get("login_method") or teacher_account.login_method
             if teacher_account.login_method != actual_method:
                 teacher_account.login_method = actual_method
@@ -261,8 +262,8 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
         update_task_progress(session, task_id, 10, "正在获取可用账号...")
         teacher_account = get_teacher(session, "", school_id)
         teacher = login_teacher_session(teacher_account.cookie)
-        if teacher_account.cookie != teacher.get_cookie():
-            teacher_account.cookie = teacher.get_cookie()
+        if decrypt(teacher_account.cookie) != teacher.get_cookie():
+            teacher_account.cookie = encrypt(teacher.get_cookie())
             actual_method = teacher.get_session().cookies.get("login_method") or teacher_account.login_method
             if teacher_account.login_method != actual_method:
                 teacher_account.login_method = actual_method

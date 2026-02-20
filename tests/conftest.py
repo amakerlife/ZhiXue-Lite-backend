@@ -21,6 +21,7 @@ from unittest.mock import Mock
 from app import create_app
 from app.database import db as _db
 from app.database.models import User, School, ZhiXueStudentAccount, ZhiXueTeacherAccount
+from app.utils.crypto import encrypt
 
 
 # Flask 应用和数据库 Fixtures
@@ -184,9 +185,9 @@ def test_zhixue_account(db, test_school):
     account = ZhiXueStudentAccount(
         id="zhixue_001",
         username="zhixue_student",
-        password="password",
+        password=encrypt("password"),
         realname="张三",
-        cookie="fake_cookie_string",
+        cookie=encrypt("fake_cookie_string"),
         school_id=test_school.id
     )
     db.session.add(account)
@@ -210,9 +211,9 @@ def test_teacher_account(db, test_school):
     teacher = ZhiXueTeacherAccount(
         id="teacher_001",
         username="zhixue_teacher",
-        password="teacher_password",
+        password=encrypt("teacher_password"),
         realname="李老师",
-        cookie="fake_teacher_cookie",
+        cookie=encrypt("fake_teacher_cookie"),
         login_method="changyan",
         school_id=test_school.id
     )

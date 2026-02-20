@@ -111,9 +111,10 @@ class TestLoginStudent:
 class TestLoginStudentSession:
     """测试 login_student_session 函数"""
 
+    @patch("app.models.student.decrypt", side_effect=lambda x: x)
     @patch("app.models.student.set_user_session")
     @patch("app.models.student.ExtendedStudentAccount")
-    def test_login_student_session_success(self, mock_account_class, mock_set_session):
+    def test_login_student_session_success(self, mock_account_class, mock_set_session, mock_decrypt):
         """测试通过 cookie 成功登录"""
         # Mock session
         mock_session = Mock()
@@ -129,12 +130,15 @@ class TestLoginStudentSession:
 
         result = login_student_session("fake_cookie_string")
 
+        mock_decrypt.assert_called_once_with("fake_cookie_string")
         mock_set_session.assert_called_once_with("fake_cookie_string")
         mock_account_class.assert_called_once_with(mock_session)
         mock_account_instance.update_login_status.assert_called_once()
         mock_account_instance.set_base_info.assert_called_once()
         assert result == mock_account_instance
 
+    @patch("app.models.student.encrypt", side_effect=lambda x: f"encrypted:{x}")
+    @patch("app.models.student.decrypt", side_effect=lambda x: x)
     @patch("flask.has_app_context")
     @patch("app.database.db")
     @patch("app.database.models.ZhiXueStudentAccount")
@@ -142,7 +146,7 @@ class TestLoginStudentSession:
     @patch("app.models.student.ExtendedStudentAccount")
     def test_login_student_session_update_cookie_in_db(
         self, mock_account_class, mock_set_session, mock_zhixue_account_class,
-        mock_db, mock_has_app_context
+        mock_db, mock_has_app_context, mock_decrypt, mock_encrypt
     ):
         """测试登录状态更新时保存新 cookie 到数据库"""
         # Mock session
@@ -169,14 +173,15 @@ class TestLoginStudentSession:
 
         assert result == mock_account_instance
 
-        # 验证更新了数据库中的 cookie
-        assert mock_db_account.cookie == "new_cookie_value"
+        # 验证更新了数据库中的 cookie（已加密）
+        assert mock_db_account.cookie == "encrypted:new_cookie_value"
         mock_db.session.commit.assert_called_once()
 
+    @patch("app.models.student.decrypt", side_effect=lambda x: x)
     @patch("app.models.student.set_user_session")
     @patch("app.models.student.ExtendedStudentAccount")
     def test_login_student_session_no_update_no_db_save(
-        self, mock_account_class, mock_set_session
+        self, mock_account_class, mock_set_session, mock_decrypt
     ):
         """测试登录状态未更新时不保存数据库"""
         # Mock session
@@ -194,11 +199,12 @@ class TestLoginStudentSession:
         # 验证返回了正确的账号（没有尝试访问数据库）
         assert result == mock_account_instance
 
+    @patch("app.models.student.decrypt", side_effect=lambda x: x)
     @patch("flask.has_app_context", side_effect=ImportError)
     @patch("app.models.student.set_user_session")
     @patch("app.models.student.ExtendedStudentAccount")
     def test_login_student_session_outside_flask_context(
-        self, mock_account_class, mock_set_session, mock_has_app_context
+        self, mock_account_class, mock_set_session, mock_has_app_context, mock_decrypt
     ):
         """测试不在 Flask 上下文中时不保存数据库（ImportError）"""
         # Mock session

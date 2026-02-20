@@ -56,7 +56,7 @@ class ZhiXueTeacherAccount(BaseDBClass):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(String(200), nullable=False)
+    password: Mapped[str] = mapped_column(Text, nullable=False)
     realname: Mapped[str] = mapped_column(String(80), nullable=False)
     cookie: Mapped[str] = mapped_column(Text, nullable=False)
     login_method: Mapped[str] = mapped_column(String(20), nullable=False, default="changyan")
@@ -75,7 +75,7 @@ class ZhiXueStudentAccount(BaseDBClass):
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True, unique=True)
     username: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(String(200), nullable=False)
+    password: Mapped[str] = mapped_column(Text, nullable=False)
     realname: Mapped[str] = mapped_column(String(80), nullable=False)
     cookie: Mapped[str] = mapped_column(Text, nullable=False)
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"), nullable=False)

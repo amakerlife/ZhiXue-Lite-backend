@@ -4,6 +4,7 @@ from sqlalchemy import select
 from app.database import db
 from app.database.models import School, ZhiXueTeacherAccount
 from app.models.teacher import login_teacher
+from app.utils.crypto import encrypt
 from app.utils.paginate import paginate_query
 
 teacher_bp = Blueprint("teacher", __name__)
@@ -81,9 +82,9 @@ def add_teacher():
         teacher = ZhiXueTeacherAccount(
             id=teacher_account.id,
             username=data["username"],
-            password=data["password"],
+            password=encrypt(data["password"]),
             realname=teacher_account.name,
-            cookie=teacher_account.get_cookie(),
+            cookie=encrypt(teacher_account.get_cookie()),
             school_id=teacher_account.school.id,
             login_method=data.get("login_method", "changyan"),
         )
@@ -117,21 +118,24 @@ def update_teacher(user_name):
 
     data = request.get_json()
 
-    allowed_fields = ["password", "login_method", "is_active"]
+    allowed_fields = ["password", "login_method"]
 
     for field in allowed_fields:
         if field in data:
-            setattr(teacher, field, data[field])
+            if field == "password":
+                setattr(teacher, field, encrypt(data[field]))
+            else:
+                setattr(teacher, field, data[field])
 
-    # 如果更新了密码或登录方式，需要重新验证
+    # 如果更新了密码，需要重新验证
     if "password" in data:
         try:
             teacher_account = login_teacher(
                 teacher.username,
-                teacher.password,
+                data["password"],
                 teacher.login_method
             )
-            teacher.cookie = teacher_account.get_cookie()
+            teacher.cookie = encrypt(teacher_account.get_cookie())
             teacher.realname = teacher_account.name
         except Exception as e:
             db.session.rollback()

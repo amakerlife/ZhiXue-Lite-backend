@@ -8,6 +8,7 @@ from datetime import datetime
 from unittest.mock import patch, Mock
 import pytest
 from app.database.models import User, School, ZhiXueStudentAccount, ZhiXueTeacherAccount, Exam, ExamSchool, UserExam, Student, Score
+from app.utils.crypto import encrypt
 
 
 @pytest.fixture
@@ -25,9 +26,9 @@ def zhixue_account(db, school):
     account = ZhiXueStudentAccount(
         id="zx_001",
         username="zxuser",
-        password="encrypted_password",
+        password=encrypt("encrypted_password"),
         realname="张三",
-        cookie="fake_cookie",
+        cookie=encrypt("fake_cookie"),
         school_id=school.id
     )
     db.session.add(account)
@@ -77,9 +78,9 @@ def teacher_account(db, school):
     teacher = ZhiXueTeacherAccount(
         id="teacher_001",
         username="teacher_user",
-        password="teacher_password",
+        password=encrypt("teacher_password"),
         realname="李老师",
-        cookie="fake_teacher_cookie",
+        cookie=encrypt("fake_teacher_cookie"),
         school_id=school.id
     )
     db.session.add(teacher)
@@ -1675,9 +1676,9 @@ def test_fetch_exam_details_force_refresh_with_permission(mock_create_task, clie
     zhixue = ZhiXueStudentAccount(
         id="zx_refetch",
         username="refetch_zx",
-        password="pass",
+        password=encrypt("pass"),
         realname="用户",
-        cookie="cookie",
+        cookie=encrypt("cookie"),
         school_id="school_001"
     )
     db.session.add_all([user, zhixue])
@@ -1788,9 +1789,9 @@ def test_export_scoresheet_self_permission_scope_all_denied(client, db, exam_wit
     zhixue = ZhiXueStudentAccount(
         id="zx_self",
         username="self_zx",
-        password="pass",
+        password=encrypt("pass"),
         realname="用户",
-        cookie="cookie",
+        cookie=encrypt("cookie"),
         school_id="school_001"
     )
     db.session.add_all([user, zhixue])
@@ -1944,9 +1945,9 @@ def test_get_exam_score_self_no_user_exam(client, db, exam_with_scores):
     zhixue = ZhiXueStudentAccount(
         id="zx_no_exam",
         username="no_exam_zx",
-        password="pass",
+        password=encrypt("pass"),
         realname="用户",
-        cookie="cookie",
+        cookie=encrypt("cookie"),
         school_id="school_001"
     )
     db.session.add_all([user, zhixue])
@@ -2130,9 +2131,9 @@ def test_exam_list_multi_school_self_permission_sees_own_school_only(client, db,
     zhixue_account = ZhiXueStudentAccount(
         id="zx_multi_001",
         username="zx_multi_user",
-        password="password",
+        password=encrypt("password"),
         realname="联考学生",
-        cookie="cookie",
+        cookie=encrypt("cookie"),
         school_id="school_multi_001"
     )
     db.session.add(zhixue_account)

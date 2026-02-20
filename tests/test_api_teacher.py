@@ -4,6 +4,7 @@
 这个文件测试教师账号管理相关的 API 端点：列表、添加、更新、删除等
 """
 from app.database.models import ZhiXueTeacherAccount
+from app.utils.crypto import encrypt
 
 
 def test_teacher_list_requires_admin(client, regular_user):
@@ -62,9 +63,9 @@ def test_teacher_list_pagination(client, admin_user, db, test_school):
         teacher = ZhiXueTeacherAccount(
             id=f"teacher_{i:03d}",
             username=f"teacher{i}",
-            password="password",
+            password=encrypt("password"),
             realname=f"教师{i}",
-            cookie=f"cookie_{i}",
+            cookie=encrypt(f"cookie_{i}"),
             login_method="changyan",
             school_id=test_school.id
         )
@@ -100,18 +101,18 @@ def test_teacher_list_search(client, admin_user, db, test_school):
     teacher1 = ZhiXueTeacherAccount(
         id="teacher_search_001",
         username="math_teacher",
-        password="password",
+        password=encrypt("password"),
         realname="数学老师",
-        cookie="cookie1",
+        cookie=encrypt("cookie1"),
         login_method="changyan",
         school_id=test_school.id
     )
     teacher2 = ZhiXueTeacherAccount(
         id="teacher_search_002",
         username="chinese_teacher",
-        password="password",
+        password=encrypt("password"),
         realname="语文老师",
-        cookie="cookie2",
+        cookie=encrypt("cookie2"),
         login_method="changyan",
         school_id=test_school.id
     )

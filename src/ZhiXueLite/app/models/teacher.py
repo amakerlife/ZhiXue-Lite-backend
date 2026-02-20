@@ -10,6 +10,7 @@ from zhixuewang.models import Exam
 from app.utils.answersheet import draw_answersheet
 from app.models.exceptions import ZhixueError
 from app.models.dataclasses import Score, StudentScoreInfo
+from app.utils.crypto import decrypt, encrypt
 from app.utils.login_zhixue import get_session_by_captcha, set_user_session, update_login_status
 
 
@@ -550,11 +551,12 @@ def login_teacher_session(cookie: str) -> ExtendedTeacherAccount:
     通过 session 登录教师账号
 
     Args:
-        cookie (str): Cookie 字符串
+        cookie (str): Cookie 字符串（JSON 格式，已加密）
 
     Returns:
         ExtendedTeacherAccount: 教师账号
     """
+    cookie = decrypt(cookie)
     session = set_user_session(cookie)
     account = ExtendedTeacherAccount(session)
     updated = account.update_login_status()
@@ -568,7 +570,7 @@ def login_teacher_session(cookie: str) -> ExtendedTeacherAccount:
                 from app.database.models import ZhiXueTeacherAccount
                 account = db.session.get(ZhiXueTeacherAccount, teacher_account.id)
                 if account:
-                    account.cookie = teacher_account.get_cookie()
+                    account.cookie = encrypt(teacher_account.get_cookie())
                     actual_method = teacher_account.get_session().cookies.get("login_method") or account.login_method
                     if account.login_method != actual_method:
                         account.login_method = actual_method

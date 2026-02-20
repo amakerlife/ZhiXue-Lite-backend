@@ -9,6 +9,7 @@ from datetime import datetime
 from app import limiter
 from flask_limiter.util import get_remote_address
 from app.task.repository import create_task
+from app.utils.crypto import decrypt, encrypt
 from app.utils.turnstile import verify_turnstile_token
 from app.utils.email import is_email_verification_enabled
 
@@ -294,9 +295,9 @@ def connect_zhixue():
     zhixue_username = data["username"]
     zhixue_password = data["password"]
 
-    zhixue_record = db.session.scalar(select(ZhiXueStudentAccount).where(
+    zhixue_record = db.session.scalar(select(ZhiXueStudentAccount).where(  # 已有相同账号
         ZhiXueStudentAccount.username == zhixue_username))
-    if zhixue_record and zhixue_password == zhixue_record.password:
+    if zhixue_record and zhixue_password == decrypt(zhixue_record.password):
         user.zhixue = zhixue_record
         user.manual_school_id = None  # 绑定智学网账号后清除手动分配的学校
         db.session.commit()
@@ -309,8 +310,8 @@ def connect_zhixue():
 
     # 添加智学网账号信息到数据库
     if zhixue_record:
-        zhixue_record.password = zhixue_password
-        zhixue_record.cookie = zhixue_account.get_cookie()
+        zhixue_record.password = encrypt(zhixue_password)
+        zhixue_record.cookie = encrypt(zhixue_account.get_cookie())
         zhixue_record.realname = zhixue_account.name
     else:
         if not db.session.get(School, zhixue_account.clazz.school.id):
@@ -323,9 +324,9 @@ def connect_zhixue():
         zhixue_record = ZhiXueStudentAccount(
             id=zhixue_account.id,
             username=zhixue_username,
-            password=zhixue_password,  # TODO: 存储加密后的密码
+            password=encrypt(zhixue_password),
             realname=zhixue_account.name,
-            cookie=zhixue_account.get_cookie(),
+            cookie=encrypt(zhixue_account.get_cookie()),
             school_id=zhixue_account.clazz.school.id
         )
         db.session.add(zhixue_record)

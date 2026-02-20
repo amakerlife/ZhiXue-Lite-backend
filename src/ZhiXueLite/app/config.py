@@ -46,6 +46,9 @@ class Config:
     LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
     LOG_DIR = os.environ.get("LOG_DIR")
 
+    # --- 加密配置 ---
+    ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY")
+
     # --- 其他配置 ---
     GEETEST_CAPTCHA_URL = os.environ.get("CAPTCHA_URL", "")
     FONT_PATH = os.environ.get("FONT_PATH", "")
@@ -76,7 +79,7 @@ class DevelopmentConfig(Config):
     SESSION_COOKIE_SECURE = False
 
     # 开发环境必需的环境变量
-    REQUIRED_ENV_VARS = ["DEV_DATABASE_URL", "CAPTCHA_URL", "FONT_PATH"]
+    REQUIRED_ENV_VARS = ["DEV_DATABASE_URL", "CAPTCHA_URL", "FONT_PATH", "ENCRYPTION_KEY"]
 
 
 class ProductionConfig(Config):
@@ -86,7 +89,7 @@ class ProductionConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ.get("PROD_DATABASE_URL", "")
 
     # 生产环境必需的环境变量
-    REQUIRED_ENV_VARS = ["PROD_SECRET_KEY", "PROD_DATABASE_URL", "CAPTCHA_URL", "FONT_PATH"]
+    REQUIRED_ENV_VARS = ["PROD_SECRET_KEY", "PROD_DATABASE_URL", "CAPTCHA_URL", "FONT_PATH", "ENCRYPTION_KEY"]
 
 
 class TestingConfig(Config):
@@ -96,6 +99,7 @@ class TestingConfig(Config):
     APP_ENV = "testing"
     SECRET_KEY = os.environ.get("SECRET_KEY", "test-secret-key")
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///:memory:")
+    ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "BA12OUGIY_swb2Kv7cXoXj1rOLZPkO7NPzgtxKugPrs=")
     # SQLite 不支持连接池配置
     SQLALCHEMY_ENGINE_OPTIONS = {}
     # 内存会话

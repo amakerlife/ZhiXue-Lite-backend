@@ -5,6 +5,7 @@
 """
 from datetime import datetime
 from app.database.models import User, School, ZhiXueStudentAccount, PermissionType, PermissionLevel
+from app.utils.crypto import encrypt
 
 
 def test_user_permissions_string_format(db):
@@ -62,9 +63,9 @@ def test_user_permission_levels(db):
     zhixue_account = ZhiXueStudentAccount(
         id="zx_001",
         username="zxuser",
-        password="encrypted_password",
+        password=encrypt("encrypted_password"),
         realname="张三",
-        cookie="fake_cookie",
+        cookie=encrypt("fake_cookie"),
         school_id="school_001"
     )
     db.session.add_all([school, zhixue_account])

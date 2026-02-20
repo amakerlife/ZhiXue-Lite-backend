@@ -13,3 +13,5 @@ CLAUDE.md
 .coverage
 flask-session
 pg_data
+
+backup*

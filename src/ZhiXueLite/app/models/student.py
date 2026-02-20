@@ -1,6 +1,7 @@
 from flask import json
 from zhixuewang.student import StudentAccount
 
+from app.utils.crypto import decrypt, encrypt
 from app.utils.login_zhixue import set_user_session, update_login_status, get_session_by_captcha
 
 
@@ -55,11 +56,12 @@ def login_student_session(cookie: str) -> ExtendedStudentAccount:
     通过 session 登录学生账号
 
     Args:
-        cookie (str): Cookie 字符串
+        cookie (str): Cookie 字符串（JSON 格式，已加密）
 
     Returns:
         ExtendedStudentAccount: 学生账号
     """
+    cookie = decrypt(cookie)
     session = set_user_session(cookie)
     account = ExtendedStudentAccount(session)
     updated = account.update_login_status()
@@ -73,7 +75,7 @@ def login_student_session(cookie: str) -> ExtendedStudentAccount:
                 from app.database.models import ZhiXueStudentAccount
                 account = db.session.get(ZhiXueStudentAccount, student_account.id)
                 if account:
-                    account.cookie = student_account.get_cookie()
+                    account.cookie = encrypt(student_account.get_cookie())
                     db.session.commit()
         except ImportError:
             pass
