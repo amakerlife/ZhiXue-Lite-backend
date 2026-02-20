@@ -52,7 +52,7 @@ def update_task_progress(session: Session, task_id: int, progress: int, message:
         logger.error(f"Failed to update task progress: {e}")
         try:
             session.rollback()
-        except:
+        except Exception:
             pass
 
 

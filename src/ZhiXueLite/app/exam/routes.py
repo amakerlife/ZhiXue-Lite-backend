@@ -441,7 +441,7 @@ def get_user_exam_score(exam_id):
             elif len(student_ids) > 1:
                 return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(student_ids)}"}), 400
             student_id = student_ids[0]
-        except:
+        except Exception:
             return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
 
     if student_id is None:
@@ -751,7 +751,7 @@ def generate_answersheet(exam_id, subject_id):
             elif len(student_ids) > 1:
                 return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(student_ids)}"}), 400
             student_id = student_ids[0]
-        except:
+        except Exception:
             return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
 
     student_id = current_user.zhixue_account_id if not student_id else student_id
