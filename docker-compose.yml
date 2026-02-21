@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:17
+    image: postgres:17-alpine
     restart: unless-stopped
     stop_signal: SIGINT
     stop_grace_period: 1m
