@@ -310,14 +310,15 @@ def mock_zhixue_student_account():
     - clazz.school.name: 学校名称
     - get_cookie(): 返回 cookie 字符串
     """
-    mock_account = Mock()
+    mock_account = Mock(spec=[])
     mock_account.id = "mock_student_001"
     mock_account.name = "学生 001"
+    mock_account.is_parent = False
     mock_account.clazz = Mock()
     mock_account.clazz.school = Mock()
     mock_account.clazz.school.id = "mock_school_001"
     mock_account.clazz.school.name = "学校 001"
-    mock_account.get_cookie.return_value = "mock_cookie_string"
+    mock_account.get_cookie = Mock(return_value="mock_cookie_string")
     return mock_account
 
 

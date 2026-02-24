@@ -445,7 +445,7 @@ def get_user_exam_score(exam_id):
             return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
 
     if student_id is None:
-        student_id = current_user.zhixue_account_id
+        student_id = current_user.student_id
 
     if school_id is None:
         if current_user.school_id is None:
@@ -736,7 +736,7 @@ def generate_answersheet(exam_id, subject_id):
         )
         if not db.session.scalar(stmt):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
-        if student_id is not None and student_id != current_user.zhixue_account_id:
+        if student_id is not None and student_id != current_user.student_id:
             return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
         if student_name is not None:
             return jsonify({"success": False, "message": "无权使用学生姓名查询成绩"}), 403
@@ -754,7 +754,7 @@ def generate_answersheet(exam_id, subject_id):
         except Exception:
             return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
 
-    student_id = current_user.zhixue_account_id if not student_id else student_id
+    student_id = current_user.student_id if not student_id else student_id
 
     cache_dir = Path(__file__).parents[4] / "cache"
     os.makedirs(cache_dir, exist_ok=True)

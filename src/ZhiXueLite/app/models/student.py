@@ -1,3 +1,5 @@
+import re
+
 from flask import json
 from zhixuewang.models import StuClass, School
 from zhixuewang.student import StudentAccount
@@ -43,25 +45,54 @@ class ExtendedStudentAccount(StudentAccount):
         self.update_login_status()
         self.is_parent = True
         r = self._session.get(
+            "https://www.zhixue.com/container/container/parent/index/"
+        )
+        if not r.ok:
+            raise ValueError(f"Error fetching parent index: {r.text}")
+        current_child_match = re.search(r"var\s+currentChild\s*=\s*(\{.*?\});", r.text, re.DOTALL)
+        if not current_child_match:
+            raise ValueError("currentChild not found in parent index page")
+        current_child = json.loads(current_child_match.group(1))
+        if current_child.get("id") is None or current_child.get("name") is None:
+            raise ValueError(f"currentChild data seems lost: {current_child}")
+        self.name = current_child["name"]
+        self.child_id = current_child["id"]
+        self.clazz = StuClass(school=School(id=current_child["school"]["schoolId"], name=current_child["school"]["schoolName"]))
+
+        r = self._session.get(
             "https://www.zhixue.com/apicourse/web/student/get/userInfo",
             headers={"Referer": "https://www.zhixue.com/course/"}
         )
         if not r.ok:
             raise ValueError(f"Error fetching user info: {r.text}")
-        print(r.json())
         data = r.json()["result"]["user"]
-        self.name = data["name"]
         self.id = data["id"]
         self.role = data["role"]
         self.username = data["loginName"]
 
-        r = self._session.get(
-            "https://www.zhixue.com/container/contact/parent/clazzs"
-        )
-        if not r.ok:
-            raise ValueError(f"Error fetching class info: {r.text}")
-        data = r.json()["school"]
-        self.clazz = StuClass(school=School(id=data["id"], name=data["name"]))
+        # r = self._session.get(
+        #     "https://www.zhixue.com/container/contact/parent/clazzs"
+        # )
+        # if not r.ok:
+        #     raise ValueError(f"Error fetching class info: {r.text}")
+        # data = r.json()["school"]
+        # self.clazz = StuClass(school=School(id=data["id"], name=data["name"]))
+
+        # r = self._session.get(
+        #     "https://www.zhixue.com/addon/error/book/index"
+        # )
+        # if not r.ok:
+        #     raise ValueError(f"Error fetching token: {r.text}")
+        # token = r.json()["result"]
+        # print(r.text)
+        # r = self._session.get(
+        #     "https://www.zhixue.com/zhixuebao/base/common/getUserInfo",
+        #     headers={"Token": token, "Xtoken": token}
+        # )
+        # if not r.ok:
+        #     raise ValueError(f"Error fetching child info: {r.text}")
+        # self.child_id = r.json()["result"]["curChildId"]
+
         return self
 
     def set_base_info(self):

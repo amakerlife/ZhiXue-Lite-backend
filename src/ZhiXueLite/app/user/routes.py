@@ -299,24 +299,41 @@ def connect_zhixue():
 
     zhixue_record = db.session.scalar(select(ZhiXueStudentAccount).where(  # 已有相同账号
         ZhiXueStudentAccount.username == zhixue_username))
+    is_pending = False
     if zhixue_record and zhixue_password == decrypt(zhixue_record.password):
-        user.zhixue = zhixue_record
-        user.manual_school_id = None  # 绑定智学网账号后清除手动分配的学校
-        db.session.commit()
-        return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
+        if not zhixue_record.is_parent:
+            user.zhixue = zhixue_record
+            user.manual_school_id = None  # 绑定智学网账号后清除手动分配的学校
+            db.session.commit()
+            return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
+        else:
+            is_pending = True
 
     try:
         zhixue_account = login_student(zhixue_username, zhixue_password, is_parent=is_parent)
     except Exception as e:
-        logger.exception("Failed to bing zhixue account", exc_info=True)
-        return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
+        logger.exception("Failed to bind zhixue account", exc_info=True)
+        return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码或身份选择是否正确"}), 403
+
+    if zhixue_account.is_parent and not getattr(zhixue_account, "child_id", None):
+        return jsonify({"success": False, "message": "该家长账号未绑定学生账号，暂时无法绑定"}), 400
+
+    if is_pending:
+        user.zhixue = zhixue_record
+        zhixue_record.cookie = encrypt(zhixue_account.get_cookie()) # pyright: ignore[reportOptionalMemberAccess]
+        zhixue_record.realname = zhixue_account.name # pyright: ignore[reportOptionalMemberAccess]
+        zhixue_record.school_id = zhixue_account.clazz.school.id # pyright: ignore[reportOptionalMemberAccess]
+        zhixue_record.child_id = zhixue_account.child_id # pyright: ignore[reportOptionalMemberAccess]
+        user.manual_school_id = None  # 绑定智学网账号后清除手动分配的学校
+        db.session.commit()
+        return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
 
     # 添加智学网账号信息到数据库
     if zhixue_record:
         zhixue_record.password = encrypt(zhixue_password)
         zhixue_record.cookie = encrypt(zhixue_account.get_cookie())
         zhixue_record.realname = zhixue_account.name
-        zhixue_record.is_parent = is_parent
+        zhixue_record.child_id = getattr(zhixue_account, "child_id", None)
     else:
         if not db.session.get(School, zhixue_account.clazz.school.id):
             school_record = School(
@@ -332,7 +349,8 @@ def connect_zhixue():
             realname=zhixue_account.name,
             cookie=encrypt(zhixue_account.get_cookie()),
             school_id=zhixue_account.clazz.school.id,
-            is_parent=is_parent
+            is_parent=is_parent,
+            child_id=getattr(zhixue_account, "child_id", None)
         )
         db.session.add(zhixue_record)
 

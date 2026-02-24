@@ -80,6 +80,7 @@ class ZhiXueStudentAccount(BaseDBClass):
     cookie: Mapped[str] = mapped_column(Text, nullable=False)
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"), nullable=False)
     is_parent: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否为家长账号
+    child_id: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # 家长账号关联的学生账号 ID
 
     users: Mapped[Optional[list["User"]]] = relationship("User", back_populates="zhixue")
     school: Mapped["School"] = relationship("School", back_populates="student_accounts")
@@ -97,7 +98,8 @@ class ZhiXueStudentAccount(BaseDBClass):
             "school_id": self.school_id,
             "school_name": self.school.name if self.school else None,
             "binded_count": len(self.users) if self.users else 0,
-            "is_parent": self.is_parent
+            "is_parent": self.is_parent,
+            "child_id": self.child_id
         }
 
 
@@ -385,7 +387,8 @@ class User(UserMixin, BaseDBClass):
             "realname": self.zhixue.realname if self.zhixue else None,
             "school_name": self.school_name,
             "school_id": self.school_id,
-            "school_has_teacher": False
+            "school_has_teacher": False,
+            "is_parent": self.zhixue.is_parent if self.zhixue else False
         }
 
         if self.zhixue:
@@ -464,6 +467,16 @@ class User(UserMixin, BaseDBClass):
         if self.zhixue:
             return self.zhixue.school.name if self.zhixue.school else None
         return self.manual_school.name if self.manual_school else None
+
+    @property
+    def student_id(self) -> Optional[str]:
+        """获取用户关联的学生账号 ID"""
+        if not self.zhixue:
+            return None
+        elif self.zhixue.is_parent:
+            return self.zhixue.child_id
+        else:
+            return self.zhixue_account_id
 
     def has_permission(self, permission_type: PermissionType, required_level: PermissionLevel) -> bool:
         """检查用户是否有指定级别的权限"""
