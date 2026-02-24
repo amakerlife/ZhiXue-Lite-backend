@@ -43,7 +43,7 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
         if not user.zhixue.cookie:
             raise ValueError("User cookie is empty")
 
-        student_account = login_student_session(user.zhixue.cookie)
+        student_account = login_student_session(user.zhixue.cookie, user.zhixue.is_parent)
         if decrypt(user.zhixue.cookie) != student_account.get_cookie():
             user.zhixue.cookie = encrypt(student_account.get_cookie())
             session.flush()

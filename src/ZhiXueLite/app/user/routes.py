@@ -1,6 +1,7 @@
 import re
 from flask import Blueprint, request, jsonify, session
 from flask_login import login_user, logout_user, login_required, current_user
+from loguru import logger
 from sqlalchemy import select
 from app.models.student import login_student
 from app.database import db
@@ -294,6 +295,7 @@ def connect_zhixue():
 
     zhixue_username = data["username"]
     zhixue_password = data["password"]
+    is_parent = data.get("is_parent") is True
 
     zhixue_record = db.session.scalar(select(ZhiXueStudentAccount).where(  # 已有相同账号
         ZhiXueStudentAccount.username == zhixue_username))
@@ -304,8 +306,9 @@ def connect_zhixue():
         return jsonify({"success": True, "message": "智学网账号已绑定"}), 200
 
     try:
-        zhixue_account = login_student(zhixue_username, zhixue_password)
+        zhixue_account = login_student(zhixue_username, zhixue_password, is_parent=is_parent)
     except Exception as e:
+        logger.exception("Failed to bing zhixue account", exc_info=True)
         return jsonify({"success": False, "message": "连接智学网失败，请检查用户名密码是否正确"}), 403
 
     # 添加智学网账号信息到数据库
@@ -313,6 +316,7 @@ def connect_zhixue():
         zhixue_record.password = encrypt(zhixue_password)
         zhixue_record.cookie = encrypt(zhixue_account.get_cookie())
         zhixue_record.realname = zhixue_account.name
+        zhixue_record.is_parent = is_parent
     else:
         if not db.session.get(School, zhixue_account.clazz.school.id):
             school_record = School(
@@ -327,7 +331,8 @@ def connect_zhixue():
             password=encrypt(zhixue_password),
             realname=zhixue_account.name,
             cookie=encrypt(zhixue_account.get_cookie()),
-            school_id=zhixue_account.clazz.school.id
+            school_id=zhixue_account.clazz.school.id,
+            is_parent=is_parent
         )
         db.session.add(zhixue_record)
 

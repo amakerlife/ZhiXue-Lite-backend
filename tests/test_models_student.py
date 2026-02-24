@@ -96,6 +96,28 @@ class TestLoginStudent:
 
         mock_get_session.assert_called_once_with("student_user", "password123", "changyan")
         mock_account_class.assert_called_once_with(mock_session)
+        assert mock_account_instance.is_parent is False
+        mock_account_instance.set_base_info.assert_called_once()
+        assert result == mock_account_instance
+
+    @patch("app.models.student.get_session_by_captcha")
+    @patch("app.models.student.ExtendedStudentAccount")
+    def test_login_student_as_parent(self, mock_account_class, mock_get_session):
+        """测试以家长身份登录"""
+        mock_session = Mock()
+        mock_get_session.return_value = mock_session
+
+        mock_account_instance = Mock()
+        mock_account_instance.id = "student_001"
+        mock_account_instance.name = "张三"
+        mock_account_class.return_value = mock_account_instance
+        mock_account_instance.set_base_info.return_value = mock_account_instance
+
+        result = login_student("parent_user", "password123", "changyan", is_parent=True)
+
+        mock_get_session.assert_called_once_with("parent_user", "password123", "changyan")
+        mock_account_class.assert_called_once_with(mock_session)
+        assert mock_account_instance.is_parent is True
         mock_account_instance.set_base_info.assert_called_once()
         assert result == mock_account_instance
 
@@ -128,12 +150,13 @@ class TestLoginStudentSession:
         mock_account_class.return_value = mock_account_instance
         mock_account_instance.set_base_info.return_value = mock_account_instance
 
-        result = login_student_session("fake_cookie_string")
+        result = login_student_session("fake_cookie_string", is_parent=False)
 
         mock_decrypt.assert_called_once_with("fake_cookie_string")
         mock_set_session.assert_called_once_with("fake_cookie_string")
         mock_account_class.assert_called_once_with(mock_session)
         mock_account_instance.update_login_status.assert_called_once()
+        assert mock_account_instance.is_parent is False
         mock_account_instance.set_base_info.assert_called_once()
         assert result == mock_account_instance
 
@@ -169,7 +192,7 @@ class TestLoginStudentSession:
         mock_db_account = Mock()
         mock_db.session.get.return_value = mock_db_account
 
-        result = login_student_session("old_cookie_string")
+        result = login_student_session("old_cookie_string", is_parent=False)
 
         assert result == mock_account_instance
 
@@ -194,7 +217,7 @@ class TestLoginStudentSession:
         mock_account_class.return_value = mock_account_instance
         mock_account_instance.set_base_info.return_value = mock_account_instance
 
-        result = login_student_session("cookie_string")
+        result = login_student_session("cookie_string", is_parent=False)
 
         # 验证返回了正确的账号（没有尝试访问数据库）
         assert result == mock_account_instance
@@ -217,7 +240,7 @@ class TestLoginStudentSession:
         mock_account_class.return_value = mock_account_instance
         mock_account_instance.set_base_info.return_value = mock_account_instance
 
-        result = login_student_session("cookie_string")
+        result = login_student_session("cookie_string", is_parent=False)
 
         # 验证成功返回账号，但没有数据库操作
         assert result == mock_account_instance

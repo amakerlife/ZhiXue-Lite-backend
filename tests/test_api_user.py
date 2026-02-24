@@ -686,7 +686,7 @@ def test_zhixue_bind_success(mock_login_student, client, regular_user, mock_zhix
     assert data["success"] is True
     assert "已绑定" in data["message"]
 
-    mock_login_student.assert_called_once_with("zhixue_test", "zhixue_pass")
+    mock_login_student.assert_called_once_with("zhixue_test", "zhixue_pass", is_parent=False)
 
     db.session.refresh(regular_user)
     assert regular_user.zhixue is not None

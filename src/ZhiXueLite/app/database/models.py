@@ -79,6 +79,7 @@ class ZhiXueStudentAccount(BaseDBClass):
     realname: Mapped[str] = mapped_column(String(80), nullable=False)
     cookie: Mapped[str] = mapped_column(Text, nullable=False)
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"), nullable=False)
+    is_parent: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否为家长账号
 
     users: Mapped[Optional[list["User"]]] = relationship("User", back_populates="zhixue")
     school: Mapped["School"] = relationship("School", back_populates="student_accounts")
@@ -95,7 +96,8 @@ class ZhiXueStudentAccount(BaseDBClass):
             "realname": self.realname,
             "school_id": self.school_id,
             "school_name": self.school.name if self.school else None,
-            "binded_count": len(self.users) if self.users else 0
+            "binded_count": len(self.users) if self.users else 0,
+            "is_parent": self.is_parent
         }
 
 

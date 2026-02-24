@@ -1,4 +1,5 @@
 from flask import json
+from zhixuewang.models import StuClass, School
 from zhixuewang.student import StudentAccount
 
 from app.utils.crypto import decrypt, encrypt
@@ -35,23 +36,60 @@ class ExtendedStudentAccount(StudentAccount):
             })
         return json.dumps(cookies)
 
+    def set_parent_info(self):
+        """
+        设置家长账号信息
+        """
+        self.update_login_status()
+        self.is_parent = True
+        r = self._session.get(
+            "https://www.zhixue.com/apicourse/web/student/get/userInfo",
+            headers={"Referer": "https://www.zhixue.com/course/"}
+        )
+        if not r.ok:
+            raise ValueError(f"Error fetching user info: {r.text}")
+        print(r.json())
+        data = r.json()["result"]["user"]
+        self.name = data["name"]
+        self.id = data["id"]
+        self.role = data["role"]
+        self.username = data["loginName"]
 
-def login_student(username: str, password: str, method: str = "changyan") -> ExtendedStudentAccount:
+        r = self._session.get(
+            "https://www.zhixue.com/container/contact/parent/clazzs"
+        )
+        if not r.ok:
+            raise ValueError(f"Error fetching class info: {r.text}")
+        data = r.json()["school"]
+        self.clazz = StuClass(school=School(id=data["id"], name=data["name"]))
+        return self
+
+    def set_base_info(self):
+        if getattr(self, "is_parent", False):
+            return self.set_parent_info()
+        return super().set_base_info()
+
+
+def login_student(username: str, password: str, method="changyan", is_parent=False) -> ExtendedStudentAccount:
     """
     登录学生账号
 
     Args:
         username (str): 用户名
         password (str): 密码
+        method (str): 验证码获取方式，默认为 "changyan"
+        is_parent (bool): 是否为家长账号，默认为 False
 
     Returns:
         ExtendedStudentAccount: 学生账号
     """
     session = get_session_by_captcha(username, password, method)
-    return ExtendedStudentAccount(session).set_base_info()
+    account = ExtendedStudentAccount(session)
+    account.is_parent = is_parent
+    return account.set_base_info()
 
 
-def login_student_session(cookie: str) -> ExtendedStudentAccount:
+def login_student_session(cookie: str, is_parent: bool) -> ExtendedStudentAccount:
     """
     通过 session 登录学生账号
 
@@ -65,6 +103,7 @@ def login_student_session(cookie: str) -> ExtendedStudentAccount:
     session = set_user_session(cookie)
     account = ExtendedStudentAccount(session)
     updated = account.update_login_status()
+    account.is_parent = is_parent
     student_account = account.set_base_info()
     if updated:
         try:
