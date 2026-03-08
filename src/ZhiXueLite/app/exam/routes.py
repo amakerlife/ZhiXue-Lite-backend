@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 from flask import Blueprint, request, jsonify, send_file
 from flask_login import login_required, current_user
 from functools import wraps
@@ -620,7 +621,6 @@ def generate_scoresheet(exam_id):
 
         # 如果是字符串，尝试提取数字
         if isinstance(rank_value, str):
-            import re
             match = re.match(r'^(\d+)', rank_value.strip())
             if match:
                 return float(match.group(1))
@@ -645,8 +645,16 @@ def generate_scoresheet(exam_id):
             sort_key.extend([school_rank_num, class_rank_num])
 
         sort_key.append(student_info["name"])
-
         return sort_key
+
+    # 将纯数字字符串转换为数字类型
+    def try_numeric(value):
+        if value is None:
+            return None
+        if isinstance(value, str) and re.fullmatch(r"-?\d+\.?\d*", value.strip()):
+            f = float(value)
+            return int(f) if f == int(f) else f
+        return value
 
     student_list = sorted(student_dict.items(), key=get_sort_key)
 
@@ -669,9 +677,9 @@ def generate_scoresheet(exam_id):
 
         for subject_name in subject_names:
             subject_data = student_info["subjects"].get(subject_name, {})
-            score = subject_data.get("score")
-            class_rank = subject_data.get("class_rank")
-            school_rank = subject_data.get("school_rank")
+            score = try_numeric(subject_data.get("score"))
+            class_rank = try_numeric(subject_data.get("class_rank"))
+            school_rank = try_numeric(subject_data.get("school_rank"))
 
             row.extend([
                 score if score is not None else None,

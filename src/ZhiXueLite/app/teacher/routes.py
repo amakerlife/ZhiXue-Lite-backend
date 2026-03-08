@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
+from loguru import logger
 from sqlalchemy import select
+from zhixuewang.exceptions import LoginError
 from app.database import db
 from app.database.models import School, ZhiXueTeacherAccount
 from app.models.teacher import login_teacher
@@ -104,9 +106,13 @@ def add_teacher():
             }
         }), 201
 
-    except Exception as e:
+    except LoginError:
         db.session.rollback()
         return jsonify({"success": False, "message": "教师账号验证失败，请检查用户名密码"}), 400
+    except Exception:
+        db.session.rollback()
+        logger.exception("Failed to add teacher account")
+        return jsonify({"success": False, "message": "发生未知错误，请查看日志"}), 500
 
 
 @teacher_bp.route("/<string:user_name>", methods=["PUT"])
