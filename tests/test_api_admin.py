@@ -3,8 +3,8 @@ Admin API 测试
 
 测试管理员相关的 API 端点：用户管理、学校管理、Su 模式等
 """
-from datetime import datetime
-from app.database.models import User, School, Exam
+from datetime import datetime, timedelta
+from app.database.models import BackgroundTask, TaskStatus, User, School, Exam
 import pytest
 from conftest import login_as_admin, login_as_user
 
@@ -539,3 +539,172 @@ def test_admin_clear_cache_success(client, admin_user):
     data = response.get_json()
 
     assert "success" in data
+
+
+# 任务列表测试
+
+@pytest.fixture
+def test_tasks(db, admin_user):
+    """
+    创建测试任务数据
+
+    创建 3 个不同状态的任务用于测试列表和筛选
+    """
+    now = datetime.utcnow()
+    tasks = [
+        BackgroundTask(
+            task_type="fetch_student_exam_list",
+            status=TaskStatus.COMPLETED.value,
+            user_id=admin_user.id,
+            created_at=now - timedelta(hours=2),
+            progress=100,
+            progress_message="完成"
+        ),
+        BackgroundTask(
+            task_type="fetch_exam_data",
+            status=TaskStatus.PROCESSING.value,
+            user_id=admin_user.id,
+            created_at=now - timedelta(hours=1),
+            progress=50,
+            progress_message="正在处理"
+        ),
+        BackgroundTask(
+            task_type="fetch_student_exam_list",
+            status=TaskStatus.PENDING.value,
+            user_id=admin_user.id,
+            created_at=now,
+        ),
+    ]
+    db.session.add_all(tasks)
+    db.session.commit()
+    return tasks
+
+
+def test_admin_list_tasks_success(client, admin_user, test_tasks):
+    """
+    测试列出任务列表
+    """
+    login_as_admin(client, admin_user)
+
+    response = client.get("/admin/list/tasks?page=1&per_page=10")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert "tasks" in data
+    assert len(data["tasks"]) == 3
+    assert "pagination" in data
+
+    # 验证任务数据包含 to_dict_all 的所有字段
+    task = data["tasks"][0]
+    assert "id" in task
+    assert "task_type" in task
+    assert "status" in task
+    assert "user_id" in task
+    assert "user_name" in task
+    assert "progress" in task
+    assert "created_at" in task
+    assert "parameters" in task
+    assert "timeout" in task
+    assert "hide" in task
+
+    # 验证 user_name 正确关联
+    assert task["user_name"] == admin_user.username
+
+    # 验证按 created_at 降序排列（最新的在前）
+    assert data["tasks"][0]["status"] == TaskStatus.PENDING.value
+    assert data["tasks"][1]["status"] == TaskStatus.PROCESSING.value
+    assert data["tasks"][2]["status"] == TaskStatus.COMPLETED.value
+
+
+def test_admin_list_tasks_filter_by_status(client, admin_user, test_tasks):
+    """
+    测试按状态筛选任务
+    """
+    login_as_admin(client, admin_user)
+
+    response = client.get("/admin/list/tasks?status=pending")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert len(data["tasks"]) == 1
+    assert data["tasks"][0]["status"] == "pending"
+
+
+def test_admin_list_tasks_filter_invalid_status(client, admin_user, test_tasks):
+    """
+    测试使用无效的状态值筛选任务
+    """
+    login_as_admin(client, admin_user)
+
+    response = client.get("/admin/list/tasks?status=invalid_status")
+
+    assert response.status_code == 400
+    data = response.get_json()
+    assert data["success"] is False
+    assert "无效的状态值" in data["message"]
+
+
+def test_admin_list_tasks_pagination(db, client, admin_user):
+    """
+    测试任务列表分页
+    """
+    login_as_admin(client, admin_user)
+
+    # 创建 5 个任务
+    now = datetime.utcnow()
+    for i in range(5):
+        task = BackgroundTask(
+            task_type="fetch_student_exam_list",
+            status=TaskStatus.PENDING.value,
+            user_id=admin_user.id,
+            created_at=now + timedelta(seconds=i),
+        )
+        db.session.add(task)
+    db.session.commit()
+
+    # 每页 2 条，取第 1 页
+    response = client.get("/admin/list/tasks?page=1&per_page=2")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert len(data["tasks"]) == 2
+    assert data["pagination"]["total"] == 5
+    assert data["pagination"]["page"] == 1
+    assert data["pagination"]["per_page"] == 2
+    assert data["pagination"]["pages"] == 3
+
+    # 取第 3 页（最后一页，只有 1 条）
+    response = client.get("/admin/list/tasks?page=3&per_page=2")
+    data = response.get_json()
+    assert len(data["tasks"]) == 1
+
+
+def test_admin_list_tasks_empty(client, admin_user):
+    """
+    测试空任务列表
+    """
+    login_as_admin(client, admin_user)
+
+    response = client.get("/admin/list/tasks")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert len(data["tasks"]) == 0
+    assert data["pagination"]["total"] == 0
+
+
+def test_admin_list_tasks_access_denied_for_regular_user(client, admin_user, regular_user):
+    """
+    测试普通用户无法访问任务列表
+    """
+    login_as_user(client, regular_user)
+
+    response = client.get("/admin/list/tasks")
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert data["success"] is False

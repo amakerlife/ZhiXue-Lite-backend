@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request, session
 from flask_login import login_required, current_user, login_user
 from sqlalchemy import select
 from app.database import db
-from app.database.models import Exam, School, ZhiXueStudentAccount, User
+from app.database.models import BackgroundTask, Exam, School, TaskStatus, ZhiXueStudentAccount, User
 from app.utils.paginate import paginate_query
 from loguru import logger
 
@@ -81,6 +81,30 @@ def list_zhixue_accounts():
         "success": True,
         "zhixue_accounts": account_list,
         "pagination": paginated_accounts["pagination"]
+    }), 200
+
+
+@admin_bp.route("/list/tasks", methods=["GET"])
+def list_tasks():
+    """列出所有任务"""
+    page = max(1, request.args.get("page", 1, type=int))
+    per_page = max(1, min(20, request.args.get("per_page", 10, type=int)))
+    status_filter = request.args.get("status", "", type=str)
+
+    stmt = select(BackgroundTask).order_by(BackgroundTask.created_at.desc(), BackgroundTask.id.desc())
+    if status_filter:
+        try:
+            status_enum = TaskStatus(status_filter)
+            stmt = stmt.where(BackgroundTask.status == status_enum.value)
+        except ValueError:
+            return jsonify({"success": False, "message": "无效的状态值"}), 400
+
+    paginated_tasks = paginate_query(stmt, page, per_page)
+    task_list = [task.to_dict_all() for task in paginated_tasks["items"]]
+    return jsonify({
+        "success": True,
+        "tasks": task_list,
+        "pagination": paginated_tasks["pagination"]
     }), 200
 
 

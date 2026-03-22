@@ -301,7 +301,6 @@ class BackgroundTask(BaseDBClass):
             "id": self.uuid,
             "task_type": self.task_type,
             "status": self.status,
-            "user_id": self.user_id,
             "progress": self.progress,
             "progress_message": self.progress_message,
             "error_message": self.error_message,
@@ -309,6 +308,25 @@ class BackgroundTask(BaseDBClass):
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "result": self.result
+        }
+
+    def to_dict_all(self):
+        return {
+            "id": self.uuid,
+            "task_type": self.task_type,
+            "status": self.status,
+            "progress": self.progress,
+            "progress_message": self.progress_message,
+            "error_message": self.error_message,
+            "parameters": self.parameters,
+            "result": self.result,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "timeout": self.timeout,
+            "user_id": self.user_id,
+            "user_name": self.user.username,
+            "is_hide": self.hide
         }
 
 
