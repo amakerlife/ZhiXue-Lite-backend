@@ -606,7 +606,7 @@ def test_admin_list_tasks_success(client, admin_user, test_tasks):
     assert "created_at" in task
     assert "parameters" in task
     assert "timeout" in task
-    assert "hide" in task
+    assert "is_hide" in task
 
     # 验证 user_name 正确关联
     assert task["user_name"] == admin_user.username
