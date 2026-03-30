@@ -27,7 +27,7 @@ dependencies = [
     "pillow==12.1.1",
     "psycopg2-binary==2.9.11",
     "python-dotenv==1.2.2",
-    "gunicorn==25.1.0",
+    "gunicorn==25.3.0",
     "cryptography==46.0.5",
 ]
 
