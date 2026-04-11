@@ -235,14 +235,16 @@ class TestExtendedTeacherAccount:
                 "topicSetId": "topic_001",
                 "standScore": "150",
                 "subjectGroupFlag": "0",
-                "sort": 1
+                "sort": 1,
+                "assignStatus": False
             },
             {
                 "subjectCode": "002",
                 "subjectName": "数学",
                 "topicSetId": "topic_002",
                 "standScore": "150",
-                "sort": 2
+                "sort": 2,
+                "assignStatus": True
             }
         ]
         mock_response.json.return_value = {
@@ -261,7 +263,39 @@ class TestExtendedTeacherAccount:
         assert "002" in subjects
         assert subjects["001"]["name"] == "语文"
         assert subjects["001"]["score"] == "150"
+        assert subjects["001"]["assignStatus"] is False
         assert subjects["002"]["name"] == "数学"
+        assert subjects["002"]["assignStatus"] is True
+
+    @patch("app.models.teacher.update_login_status")
+    def test_get_exam_subjects_invalid_assign_status_type(self, mock_update_login_status):
+        """测试学科 assignStatus 不是 bool 时抛出异常"""
+        mock_update_login_status.return_value = False
+        mock_session = create_mock_teacher_session()
+
+        mock_response = Mock()
+        subjects_data = [
+            {
+                "subjectCode": "001",
+                "subjectName": "语文",
+                "topicSetId": "topic_001",
+                "standScore": "150",
+                "subjectGroupFlag": "0",
+                "sort": 1,
+                "assignStatus": "1"
+            }
+        ]
+        mock_response.json.return_value = {
+            "result": {
+                "allSubjectTopicSetListJSON": json.dumps(subjects_data)
+            }
+        }
+        mock_session.post.return_value = mock_response
+
+        account = ExtendedTeacherAccount(mock_session)
+
+        with pytest.raises(ZhixueError, match="Invalid assignStatus type"):
+            account.get_exam_subjects("exam_test_001")
 
     def test_calc_rank(self):
         """测试计算排名（静态方法）"""
@@ -270,21 +304,21 @@ class TestExtendedTeacherAccount:
 
         student1 = StudentScoreInfo("张三", "stu_001", "001", "100001", "标签1", "一班", "180", "1", "1")
         student1.scores.append(Score(name="语文", score="95", classrank="", schoolrank="",
-                               subjectcode=1, topicsetid="topic_001", standard_score="95", sort=1))
+                               subjectcode=1, topicsetid="topic_001", standard_score="95", is_assign=False, sort=1))
         student1.scores.append(Score(name="数学", score="85", classrank="", schoolrank="",
-                               subjectcode=2, topicsetid="topic_002", standard_score="85", sort=2))
+                               subjectcode=2, topicsetid="topic_002", standard_score="85", is_assign=False, sort=2))
 
         student2 = StudentScoreInfo("李四", "stu_002", "002", "100002", "标签2", "一班", "170", "2", "2")
         student2.scores.append(Score(name="语文", score="88", classrank="", schoolrank="",
-                               subjectcode=1, topicsetid="topic_001", standard_score="88", sort=1))
+                               subjectcode=1, topicsetid="topic_001", standard_score="88", is_assign=False, sort=1))
         student2.scores.append(Score(name="数学", score="82", classrank="", schoolrank="",
-                               subjectcode=2, topicsetid="topic_002", standard_score="82", sort=2))
+                               subjectcode=2, topicsetid="topic_002", standard_score="82", is_assign=False, sort=2))
 
         student3 = StudentScoreInfo("王五", "stu_003", "003", "100003", "标签3", "二班", "190", "1", "1")
         student3.scores.append(Score(name="语文", score="98", classrank="", schoolrank="",
-                               subjectcode=1, topicsetid="topic_001", standard_score="98", sort=1))
+                               subjectcode=1, topicsetid="topic_001", standard_score="98", is_assign=False, sort=1))
         student3.scores.append(Score(name="数学", score="92", classrank="", schoolrank="",
-                               subjectcode=2, topicsetid="topic_002", standard_score="92", sort=2))
+                               subjectcode=2, topicsetid="topic_002", standard_score="92", is_assign=False, sort=2))
 
         students = [student1, student2, student3]
 

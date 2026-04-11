@@ -4,9 +4,11 @@
 测试考试列表端点，包括分页、权限、查询过滤等功能
 """
 import time
+from io import BytesIO
 from datetime import datetime
 from unittest.mock import patch, Mock
 import pytest
+from openpyxl import load_workbook
 from app.database.models import User, School, ZhiXueStudentAccount, ZhiXueTeacherAccount, Exam, ExamSchool, UserExam, Student, Score
 from app.utils.crypto import encrypt
 
@@ -1102,6 +1104,8 @@ def exam_with_scores(db, school, zhixue_account):
             class_name="一班",
             sort=1,
             score="95",
+            is_assign=True,
+            origin_score="89",
             standard_score="95",
             class_rank="1",
             school_rank="1"
@@ -1132,6 +1136,8 @@ def exam_with_scores(db, school, zhixue_account):
             class_name="一班",
             sort=1,
             score="88",
+            is_assign=True,
+            origin_score="84",
             standard_score="88",
             class_rank="5",
             school_rank="10"
@@ -1160,8 +1166,12 @@ def test_get_exam_score_success_self(client, user_with_zhixue, exam_with_scores)
     # 检查成绩按 sort 排序
     assert data["scores"][0]["subject_name"] == "语文"
     assert data["scores"][0]["score"] == "95"
+    assert data["scores"][0]["is_assign"] is True
+    assert data["scores"][0]["origin_score"] == "89"
     assert data["scores"][1]["subject_name"] == "数学"
     assert data["scores"][1]["score"] == "90"
+    assert data["scores"][1]["is_assign"] is False
+    assert data["scores"][1]["origin_score"] is None
 
 
 def test_get_exam_score_by_student_id(client, db, admin_user, exam_with_scores, school):
@@ -1452,6 +1462,28 @@ def test_export_scoresheet_success(client, user_with_zhixue, exam_with_scores, s
     assert response.content_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     # 检查文件下载头
     assert "attachment" in response.headers.get("Content-Disposition", "")
+
+
+def test_export_scoresheet_assigned_subject_columns(client, user_with_zhixue, exam_with_scores, school):
+    """测试赋分科目导出列：应包含原始分/赋分，非赋分科目保留成绩列"""
+    user_with_zhixue.permissions = "10111"
+    from app.database import db as _db
+    _db.session.commit()
+
+    login_user(client)
+
+    response = client.get(f"/exam/{exam_with_scores.id}/scoresheet?school_id={school.id}")
+
+    assert response.status_code == 200
+    wb = load_workbook(BytesIO(response.data))
+    ws = wb.active
+    assert ws is not None
+    titles = [cell.value for cell in ws[1]]
+
+    assert "语文原始分" in titles
+    assert "语文赋分" in titles
+    assert "语文成绩" not in titles
+    assert "数学成绩" in titles
 
 
 def test_export_scoresheet_requires_permission(client, user_with_zhixue, exam_with_scores, school):

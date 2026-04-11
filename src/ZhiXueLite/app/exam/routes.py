@@ -469,8 +469,10 @@ def get_user_exam_score(exam_id):
             "standard_score": raw_score.standard_score,
             "class_rank": raw_score.class_rank,
             "school_rank": raw_score.school_rank,
+            "is_assign": raw_score.is_assign,
             "sort": raw_score.sort,
             "is_calculated": raw_score.is_calculated,  # 总分是否为计算得到
+            "origin_score": raw_score.origin_score  # 原始分
         })
 
     # 每科班校内总参考人数，仅支持 PostgreSQL，本地测试环境暂时无法使用
@@ -598,16 +600,17 @@ def generate_scoresheet(exam_id):
 
         subject_name = score.subject_name
         if subject_name not in subject_info:
-            subject_info[subject_name] = score.sort
+            subject_info[subject_name] = (score.sort, score.is_assign)
 
         student_dict[student_id]["subjects"][subject_name] = {
             "score": score.score,
             "standard_score": score.standard_score,
+            "origin_score": score.origin_score,
             "class_rank": score.class_rank,
             "school_rank": score.school_rank
         }
 
-    subject_names = sorted(subject_info.keys(), key=lambda x: subject_info[x])
+    subject_names = sorted(subject_info.keys(), key=lambda x: subject_info[x][0])
 
     def parse_rank_value(rank_value):
         """
@@ -660,8 +663,14 @@ def generate_scoresheet(exam_id):
 
     titles = ["姓名", "学校", "标签", "班级"]
     for subject_name in subject_names:
+        if subject_info[subject_name][1]:  # is_assign
+            titles.extend([
+                f"{subject_name}原始分",
+                f"{subject_name}赋分",
+            ])
+        else:
+            titles.extend([f"{subject_name}成绩"])
         titles.extend([
-            f"{subject_name}成绩",
             f"{subject_name}班次",
             f"{subject_name}校次"
         ])
@@ -681,8 +690,15 @@ def generate_scoresheet(exam_id):
             class_rank = try_numeric(subject_data.get("class_rank"))
             school_rank = try_numeric(subject_data.get("school_rank"))
 
+            if subject_info[subject_name][1]:  # is_assign
+                origin_score = try_numeric(subject_data.get("origin_score"))
+                row.extend([
+                    origin_score if origin_score is not None else None,
+                    score if score is not None else None
+                ])
+            else:
+                row.append(score if score is not None else None)
             row.extend([
-                score if score is not None else None,
                 class_rank if class_rank is not None else None,
                 school_rank if school_rank is not None else None
             ])

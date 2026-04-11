@@ -1,7 +1,7 @@
 import json
 import re
 from time import sleep
-from typing import Tuple
+from typing import Any, Tuple
 
 from loguru import logger
 from zhixuewang.teacher import TeacherAccount
@@ -105,7 +105,7 @@ class ExtendedTeacherAccount(TeacherAccount):
         return exams
 
     def get_exam_subjects(self, examid: str) -> dict[
-        str, dict[str, str]
+        str, dict[str, Any]
     ]:
         """
         获得指定考试学科列表（校级报告接口）
@@ -129,12 +129,19 @@ class ExtendedTeacherAccount(TeacherAccount):
         subjectslist = {}
         for subject in subjects:
             sort_value = subject.get("sort", 1)
+            assign_status = subject.get("assignStatus")
+            if not isinstance(assign_status, bool):
+                raise ZhixueError(
+                    f"Invalid assignStatus type: exam_id={examid}, subject_code={subject.get('subjectCode')}, "
+                    f"value={assign_status}, type={type(assign_status).__name__}"
+                )
             subjectslist[str(subject["subjectCode"])] = {
                 "id": subject["topicSetId"],
                 "name": subject["subjectName"],
                 "score": str(subject["standScore"]),
                 "is_group": str(subject.get("subjectGroupFlag", "0")),
-                "sort": sort_value
+                "sort": sort_value,
+                "assignStatus": assign_status
             }
         return subjectslist
 
@@ -307,8 +314,10 @@ class ExtendedTeacherAccount(TeacherAccount):
                         score_info["schoolRank"], score_info["subjectCode"],
                         subjects[score_info["subjectCode"]]["id"],
                         subjects[score_info["subjectCode"]]["score"],
-                        int(subject_sort),
-                        is_calculated=False
+                        subjects[score_info["subjectCode"]]["assignStatus"],
+                        sort=int(subject_sort),
+                        is_calculated=False,
+                        origin_score=score_info["assignScore"] if "assignScore" in score_info else "",
                     )
 
                 # 处理总分
@@ -328,7 +337,8 @@ class ExtendedTeacherAccount(TeacherAccount):
                 # 添加总分
                 student_info.add_subject_score(
                     "总分", total_score_value, total_class_rank, total_school_rank,
-                    -1, "0", str(total_score), -1,
+                    -1, "0", str(total_score), False,
+                    sort=-1,
                     is_calculated=is_total_calculated
                 )
 

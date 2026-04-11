@@ -228,6 +228,8 @@ class Score(BaseDBClass):
 
     score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 为空时表示原始数据无成绩，下同
     standard_score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    is_assign: Mapped[bool] = mapped_column(Boolean, default=False)  # 是否赋分科目
+    origin_score: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # 原始分，仅赋分科目有
     class_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     school_rank: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     score_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="ok")  # 状态，ok 正常，错误状态待发掘
