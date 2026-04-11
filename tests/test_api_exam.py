@@ -1391,6 +1391,9 @@ def test_fetch_exam_details_task_created(mock_create_task, client, user_with_zhi
     call_kwargs = mock_create_task.call_args[1]
     assert call_kwargs["task_type"] == "fetch_exam_details"
     assert call_kwargs["user_id"] == user_with_zhixue.id
+    assert call_kwargs["parameters"]["exam_id"] == "exam_001"
+    assert call_kwargs["parameters"]["force_refresh"] is False
+    assert call_kwargs["parameters"]["force_calculate"] is False
     assert call_kwargs["timeout"] == 300
 
 
@@ -1417,6 +1420,45 @@ def test_fetch_exam_details_force_refresh(mock_create_task, client, user_with_zh
     # 检查参数中包含 force_refresh
     call_kwargs = mock_create_task.call_args[1]
     assert call_kwargs["parameters"]["force_refresh"] is True
+    assert call_kwargs["parameters"]["force_calculate"] is False
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_details_force_calculate_no_permission(mock_create_task, client, user_with_zhixue, sample_exams):
+    """测试强制计算总分但没有 REFETCH_EXAM_DATA 权限"""
+    # user_with_zhixue 默认权限 "10110" 没有 REFETCH_EXAM_DATA (位置 1)
+    login_user(client)
+
+    response = client.post(f"/exam/exam_001/fetch?force_calculate=true", json={})
+
+    assert response.status_code == 403
+    data = response.get_json()
+    assert "Access Denied" in data["message"]
+    mock_create_task.assert_not_called()
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_details_force_calculate_with_permission(mock_create_task, client, user_with_zhixue, sample_exams):
+    """测试有 REFETCH_EXAM_DATA 权限时可强制计算总分"""
+    mock_task = Mock()
+    mock_task.uuid = "task-force-calc-123"
+    mock_create_task.return_value = mock_task
+
+    user_with_zhixue.permissions = "11110"  # REFETCH_EXAM_DATA=1
+    from app.database import db as _db
+    _db.session.commit()
+
+    login_user(client)
+
+    response = client.post(f"/exam/exam_001/fetch?force_calculate=true", json={})
+
+    assert response.status_code == 202
+    data = response.get_json()
+    assert data["success"] is True
+
+    call_kwargs = mock_create_task.call_args[1]
+    assert call_kwargs["parameters"]["force_refresh"] is False
+    assert call_kwargs["parameters"]["force_calculate"] is True
 
 
 def test_fetch_exam_details_requires_login(client):

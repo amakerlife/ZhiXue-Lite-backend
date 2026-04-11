@@ -120,6 +120,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
     exam_id = parameters.get("exam_id", None)
     force_refresh = parameters.get("force_refresh", False)
     school_id = parameters.get("school_id", None)
+    force_calculate = parameters.get("force_calculate", False)
     if exam_id is None:
         raise ValueError("Missing exam_id parameter")
 
@@ -181,7 +182,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
             session.flush()
 
         update_task_progress(session, task_id, 30, "正在拉取考试成绩...")
-        student_scores = teacher.get_exam_scores(exam_id)
+        student_scores = teacher.get_exam_scores(exam_id, force_calculate)
         total_students = len(student_scores)
 
         for i, student_score in enumerate(student_scores):

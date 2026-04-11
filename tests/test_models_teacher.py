@@ -406,6 +406,159 @@ class TestExtendedTeacherAccount:
         assert exam.name == "期中考试"
         assert exam.create_time == 1234567890
 
+    @patch("app.models.teacher.sleep")
+    @patch("app.models.teacher.update_login_status")
+    def test_get_exam_scores_force_calculate_false_keeps_valid_total(self, mock_update_login_status, mock_sleep):
+        """测试 force_calculate=False 时保留原始总分"""
+        mock_update_login_status.return_value = False
+        mock_session = create_mock_teacher_session()
+
+        # getAllSubjectStudentRank (分页信息)
+        mock_page_response = Mock()
+        mock_page_response.json.return_value = {
+            "result": {
+                "paperInfo": {
+                    "totalPage": 1
+                }
+            }
+        }
+
+        # studentExamScore (考试标准分)
+        mock_total_response = Mock()
+        mock_total_response.json.return_value = {
+            "result": {
+                "schoolExamArchive": {
+                    "standardScore": "750"
+                }
+            }
+        }
+
+        # getAllSubjectStudentRank (学生成绩)
+        mock_rank_response = Mock()
+        mock_rank_response.json.return_value = {
+            "result": {
+                "studentRank": [
+                    {
+                        "userName": "张三",
+                        "userId": "stu_001",
+                        "studentNo": "001",
+                        "userNum": "100001",
+                        "studentLabel": "标签1",
+                        "className": "一班",
+                        "allScore": "300",
+                        "classRank": "5",
+                        "schoolRank": "10",
+                        "scoreInfos": [
+                            {
+                                "subjectCode": "001",
+                                "score": "95",
+                                "classRank": "1",
+                                "schoolRank": "2",
+                                "assignScore": "95"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+        mock_session.post.side_effect = [mock_page_response, mock_total_response, mock_rank_response]
+
+        account = ExtendedTeacherAccount(mock_session)
+        account.get_exam_subjects = Mock(return_value={
+            "001": {
+                "name": "语文",
+                "sort": 1,
+                "id": "topic_001",
+                "score": "150",
+                "assignStatus": False,
+            }
+        })
+
+        with patch.object(ExtendedTeacherAccount, "calc_rank") as mock_calc_rank:
+            students = account.get_exam_scores("exam_001", force_calculate=False)
+
+        assert len(students) == 1
+        total_score = next(score for score in students[0].scores if score.subjectcode == -1)
+        assert total_score.score == "300"
+        assert total_score.is_calculated is False
+        mock_calc_rank.assert_not_called()
+
+    @patch("app.models.teacher.sleep")
+    @patch("app.models.teacher.update_login_status")
+    def test_get_exam_scores_force_calculate_true_recalculates_total(self, mock_update_login_status, mock_sleep):
+        """测试 force_calculate=True 时即使总分有效也会重算"""
+        mock_update_login_status.return_value = False
+        mock_session = create_mock_teacher_session()
+
+        mock_page_response = Mock()
+        mock_page_response.json.return_value = {
+            "result": {
+                "paperInfo": {
+                    "totalPage": 1
+                }
+            }
+        }
+
+        mock_total_response = Mock()
+        mock_total_response.json.return_value = {
+            "result": {
+                "schoolExamArchive": {
+                    "standardScore": "750"
+                }
+            }
+        }
+
+        mock_rank_response = Mock()
+        mock_rank_response.json.return_value = {
+            "result": {
+                "studentRank": [
+                    {
+                        "userName": "李四",
+                        "userId": "stu_002",
+                        "studentNo": "002",
+                        "userNum": "100002",
+                        "studentLabel": "标签2",
+                        "className": "一班",
+                        "allScore": "300",
+                        "classRank": "5",
+                        "schoolRank": "10",
+                        "scoreInfos": [
+                            {
+                                "subjectCode": "001",
+                                "score": "88",
+                                "classRank": "3",
+                                "schoolRank": "6",
+                                "assignScore": "88"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+
+        mock_session.post.side_effect = [mock_page_response, mock_total_response, mock_rank_response]
+
+        account = ExtendedTeacherAccount(mock_session)
+        account.get_exam_subjects = Mock(return_value={
+            "001": {
+                "name": "语文",
+                "sort": 1,
+                "id": "topic_001",
+                "score": "150",
+                "assignStatus": False,
+            }
+        })
+
+        with patch.object(ExtendedTeacherAccount, "calc_rank") as mock_calc_rank:
+            students = account.get_exam_scores("exam_001", force_calculate=True)
+
+        assert len(students) == 1
+        total_score = next(score for score in students[0].scores if score.subjectcode == -1)
+        assert total_score.score == "88.0"
+        assert total_score.is_calculated is True
+        mock_calc_rank.assert_called_once()
+
 
 class TestLoginTeacher:
     """测试 login_teacher 函数"""

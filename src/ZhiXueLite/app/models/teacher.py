@@ -225,12 +225,13 @@ class ExtendedTeacherAccount(TeacherAccount):
                         score_obj.classrank = str(current_rank)
                     prev_score = current_score
 
-    def get_exam_scores(self, examid: str) -> list[StudentScoreInfo]:
+    def get_exam_scores(self, examid: str, force_calculate: bool = False) -> list[StudentScoreInfo]:
         """
         获得成绩单
 
         Args:
             examid: 考试 ID
+            force_calculate: 是否强制计算总分与排名
 
         Returns:
             list: 成绩单
@@ -327,7 +328,7 @@ class ExtendedTeacherAccount(TeacherAccount):
                 total_school_rank = student["schoolRank"]
 
                 # 检查 allScore 是否为无效值
-                if student["allScore"] in ["-", "", None]:
+                if force_calculate or student["allScore"] in ["-", "", None]:
                     # 计算总分
                     calculated_score = calculate_total_score(student_info.scores)
                     total_score_value = calculated_score

@@ -332,9 +332,11 @@ def fetch_exam(exam_id):
     拉取指定考试的详细信息
     可选参数
     - force_refresh: 是否强制刷新，默认为 false
+    - force_calculate: 是否强制计算总分，默认为 false，仅在原始总分无效时才计算
     - school_id: 考试所属学校 ID，默认为空（若考试已保存则自动获取，否则为当前用户所在学校）
     """
     force_refresh = request.args.get("force_refresh", "false").lower() == "true"
+    force_calculate = request.args.get("force_calculate", "false").lower() == "true"
     school_id = request.args.get("school_id", "", type=str)
 
     if not current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SCHOOL):
@@ -352,7 +354,7 @@ def fetch_exam(exam_id):
         if current_user.school_id is None or (school_id and current_user.school_id != school_id):
             return jsonify({"success": False, "message": "无权访问该考试数据"}), 403
 
-    if force_refresh:
+    if force_refresh or force_calculate:
         if current_user.has_permission(PermissionType.REFETCH_EXAM_DATA, PermissionLevel.GLOBAL):
             pass
         elif current_user.has_permission(PermissionType.REFETCH_EXAM_DATA, PermissionLevel.SCHOOL):
@@ -376,7 +378,8 @@ def fetch_exam(exam_id):
     task = create_task(
         task_type="fetch_exam_details",
         user_id=current_user.id,
-        parameters={"exam_id": exam_id, "force_refresh": force_refresh, "school_id": school_id},
+        parameters={"exam_id": exam_id, "force_refresh": force_refresh,
+                    "school_id": school_id, "force_calculate": force_calculate},
         timeout=300
     )
     return jsonify({
