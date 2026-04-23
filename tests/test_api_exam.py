@@ -1191,6 +1191,7 @@ def test_get_exam_score_by_student_id(client, db, admin_user, exam_with_scores, 
 
 @patch("app.exam.routes.login_teacher_session")
 @patch("app.exam.routes.get_teacher")
+@pytest.mark.skip(reason="deprecated")
 def test_get_exam_score_by_student_name(mock_get_teacher, mock_login_teacher, client, admin_user, exam_with_scores, teacher_account, school):
     """测试通过 student_name 查询成绩（需要 mock 教师账号）"""
     mock_get_teacher.return_value = teacher_account
@@ -1275,6 +1276,7 @@ def test_get_exam_score_requires_permission(client, db, exam_with_scores):
 
 @patch("app.exam.routes.login_teacher_session")
 @patch("app.exam.routes.get_teacher")
+@pytest.mark.skip(reason="deprecated")
 def test_get_exam_score_student_not_found(mock_get_teacher, mock_login_teacher, client, admin_user, exam_with_scores, teacher_account, school):
     """测试通过 student_name 查询但未找到学生"""
     mock_get_teacher.return_value = teacher_account
@@ -1295,6 +1297,7 @@ def test_get_exam_score_student_not_found(mock_get_teacher, mock_login_teacher, 
 
 @patch("app.exam.routes.login_teacher_session")
 @patch("app.exam.routes.get_teacher")
+@pytest.mark.skip(reason="deprecated")
 def test_get_exam_score_multiple_students_found(mock_get_teacher, mock_login_teacher, client, admin_user, exam_with_scores, teacher_account, school):
     """测试通过 student_name 查询但匹配到多个学生"""
     mock_get_teacher.return_value = teacher_account

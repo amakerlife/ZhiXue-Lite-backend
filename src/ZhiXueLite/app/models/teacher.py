@@ -2,6 +2,7 @@ import json
 import re
 from time import sleep
 from typing import Any, Tuple
+from typing_extensions import deprecated
 
 from loguru import logger
 from zhixuewang.teacher import TeacherAccount
@@ -490,6 +491,7 @@ class ExtendedTeacherAccount(TeacherAccount):
             raise ZhixueError("Failed to draw answersheet")
         return image
 
+    @deprecated("This method is deprecated and may be removed in future versions.")
     def get_student_id_by_name(self, examid: str, stuname: str) -> list[str]:
         """
         根据学生姓名和 examid 获取学生 ID

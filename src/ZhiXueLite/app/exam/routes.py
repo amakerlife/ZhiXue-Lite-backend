@@ -8,7 +8,7 @@ import time
 from openpyxl import Workbook
 from sqlalchemy import func, select
 from app.database import db
-from app.database.models import Exam, ExamSchool, PermissionLevel, Score, User, UserExam, ZhiXueTeacherAccount, PermissionType
+from app.database.models import Exam, ExamSchool, PermissionLevel, Score, Student, User, UserExam, ZhiXueTeacherAccount, PermissionType
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
 from app.task.repository import create_task
@@ -436,17 +436,26 @@ def get_user_exam_score(exam_id):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
 
     if student_name is not None:
-        try:
-            teacher_account = get_teacher(exam_id, school_id=school_id)
-            teacher = login_teacher_session(teacher_account.cookie)
-            student_ids = teacher.get_student_id_by_name(exam_id, student_name)
-            if len(student_ids) == 0:
-                return jsonify({"success": False, "message": "未找到该学生"}), 404
-            elif len(student_ids) > 1:
-                return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(student_ids)}"}), 400
-            student_id = student_ids[0]
-        except Exception:
-            return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
+        stmt = (
+            select(Student.id, func.min(Score.class_name).label("class_name"))
+            .join(Score, Student.id == Score.student_id)
+            .where(
+                (Score.exam_id == exam_id) &
+                (Score.school_id == school_id) &
+                (Student.name == student_name)
+            )
+            .group_by(Student.id)
+            .order_by(Student.id)
+        )
+        matches = db.session.execute(stmt).all()
+        if len(matches) == 0:
+            return jsonify({"success": False, "message": "未找到该学生"}), 404
+
+        if len(matches) > 1:
+            details = [f"{sid}（{(class_name or '未知班级')}）" for sid, class_name in matches]
+            return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(details)}"}), 400
+
+        student_id = matches[0][0]
 
     if student_id is None:
         student_id = current_user.student_id
@@ -769,17 +778,26 @@ def generate_answersheet(exam_id, subject_id):
             return jsonify({"success": False, "message": "无权使用学生姓名查询成绩"}), 403
 
     if student_name is not None:
-        try:
-            teacher_account = get_teacher(exam_id, school_id=school_id)
-            teacher = login_teacher_session(teacher_account.cookie)
-            student_ids = teacher.get_student_id_by_name(exam_id, student_name)
-            if len(student_ids) == 0:
-                return jsonify({"success": False, "message": "未找到该学生"}), 404
-            elif len(student_ids) > 1:
-                return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(student_ids)}"}), 400
-            student_id = student_ids[0]
-        except Exception:
-            return jsonify({"success": False, "message": "获取学生 ID 失败"}), 500
+        stmt = (
+            select(Student.id, func.min(Score.class_name).label("class_name"))
+            .join(Score, Student.id == Score.student_id)
+            .where(
+                (Score.exam_id == exam_id) &
+                (Score.school_id == school_id) &
+                (Student.name == student_name)
+            )
+            .group_by(Student.id)
+            .order_by(Student.id)
+        )
+        matches = db.session.execute(stmt).all()
+        if len(matches) == 0:
+            return jsonify({"success": False, "message": "未找到该学生"}), 404
+
+        if len(matches) > 1:
+            details = [f"{sid}（{(class_name or '班级未知')}）" for sid, class_name in matches]
+            return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(details)}"}), 400
+
+        student_id = matches[0][0]
 
     student_id = current_user.student_id if not student_id else student_id
 

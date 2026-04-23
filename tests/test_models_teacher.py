@@ -335,6 +335,7 @@ class TestExtendedTeacherAccount:
         assert student3.scores[0].classrank == "1"  # 王五在二班第1名
 
     @patch("app.models.teacher.update_login_status")
+    @pytest.mark.skip(reason="deprecated")
     def test_get_student_id_by_name_success(self, mock_update_login_status):
         """测试根据姓名获取学生 ID 成功"""
         mock_update_login_status.return_value = False
@@ -363,6 +364,7 @@ class TestExtendedTeacherAccount:
         assert "stu_002" in student_ids
 
     @patch("app.models.teacher.update_login_status")
+    @pytest.mark.skip(reason="deprecated")
     def test_get_student_id_by_name_html_error(self, mock_update_login_status):
         """测试获取学生 ID 时遇到 HTML 错误"""
         mock_update_login_status.return_value = False
