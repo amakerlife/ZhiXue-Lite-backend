@@ -8,11 +8,11 @@
     <img src="https://socialify.git.ci/amakerlife/ZhiXue-Lite-backend/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Light">
 </p>
 
-对接智学网官方 API 的轻量 Web 后端应用。
+Lightweight Web App for Integrating with zhixue.com’s Official API, built using the frontend stack Vite + React + Tailwind CSS and the backend stack Python Flask + PostgreSQL.
 
 ---
 
-## 快速开始
+## Quick Start
 
 ```bash
 git clone https://github.com/amakerlife/ZhiXue-Lite-backend
@@ -23,22 +23,23 @@ pip install .
 flask run
 ```
 
-## Todo List
+## To-Do List
 
-- [ ] 以学生 id 作为唯一依据，可新建 login_name -> student_id 的 mapping，允许用户使用不同用户名登录
-- [ ] 随机抽取考试中的答题卡
-- [ ] 使用另一个 API 获取总分数据，避免某些问题（可能包括阅卷中）
-- [ ] 添加任务优先级（例如发送验证邮件优先级最高），顺序执行
-- [ ] 支持选择学校（后端返回学校列表）
-- [ ] 添加忘记密码
-- [ ] 考试数据库存储考试年级、级别等详细信息
-- [ ] 重新拉取成绩在覆盖更新之后，额外做一次比对，把本地有但远端没有的记录标记删除或软删除
-- [ ] 基于 Go 重写
-- [x] 学生、教师自动选择合适的登录方式，并保存
-- [x] 允许家长登录
-- [x] [Go 重写后实现]后台任务异步轮询，启动子进程后立即返回在每次轮询时检查进程状态
-- [x] [Go 重写后实现]在任务列表为有权限用户显示详细信息
+- [ ] Create a mapping from `login_name` to `student_id` using the student ID as the unique identifier, allowing users to log in with different usernames
+- [ ] Randomly select answer sheets from exams
+- [ ] Use a separate API to retrieve total score data to avoid certain issues (which may include those related to grading)
+- [ ] Add task priorities (e.g., sending verification emails has the highest priority) and execute tasks in order
+- [ ] Support school selection (backend returns a list of schools)
+- [ ] Add “Forgot Password” feature
+- [ ] Store detailed information such as exam grade and level in the exam database
+- [ ] After fetching grades following an overwrite update, perform an additional comparison to mark records present locally but missing remotely for deletion or soft deletion
+- [ ] Rewrite using Go
+- [x] Automatically select the appropriate login method for students and teachers, and save the selection
+- [x] Allow parent login
+- [x] [To be implemented after Go rewrite] Asynchronous polling for background tasks; return immediately after starting child processes and check process status on each poll
+- [x] [To be implemented after Go rewrite] Display detailed information in the task list for authorized users
 
-## 提示
 
-使用本项目前，请确保拥有目标学校具有查看至少校级报告权限的教师账号。如需全部功能，请添加校长/管理员账号。本项目不会提供验证码 API，请自行解决。
+## Note
+
+Before using this project, please ensure you have a teacher account for the target school with permissions to view at least school-level reports. To access all features, please add a principal or administrator account. This project does not provide an API for verification codes; please handle this on your own.
