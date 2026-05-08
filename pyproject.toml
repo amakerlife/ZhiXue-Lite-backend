@@ -28,7 +28,7 @@ dependencies = [
     "psycopg2-binary==2.9.12",
     "python-dotenv==1.2.2",
     "gunicorn==25.3.0",
-    "cryptography==46.0.7",
+    "cryptography==48.0.0",
 ]
 
 [project.optional-dependencies]
