@@ -24,7 +24,7 @@ def send_verification_email_handler(session: Session, task_id: int, user_id: int
         dict: 任务执行结果
     """
     try:
-        update_task_progress(session, task_id, 10, "获取发送参数...")
+        update_task_progress(task_id, 10, "获取发送参数...")
 
         email_type = str(parameters.get("email_type"))
         to_email = str(parameters.get("to_email"))
@@ -34,7 +34,7 @@ def send_verification_email_handler(session: Session, task_id: int, user_id: int
         if not all([email_type, to_email, username, token]):
             raise ValueError("Missing required parameters")
 
-        update_task_progress(session, task_id, 50, "正在发送邮件...")
+        update_task_progress(task_id, 50, "正在发送邮件...")
 
         success = False
         if email_type == "signup":
@@ -50,7 +50,7 @@ def send_verification_email_handler(session: Session, task_id: int, user_id: int
         if not success:
             raise Exception(f"Failed to send {email_type} verification email to {to_email}")
 
-        update_task_progress(session, task_id, 100, "邮件发送成功")
+        update_task_progress(task_id, 100, "邮件发送成功")
         return {"success": True, "email": to_email}
 
     except Exception as e:

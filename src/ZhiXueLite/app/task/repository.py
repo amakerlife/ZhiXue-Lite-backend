@@ -49,27 +49,3 @@ def update_task_status(task_uuid: str, status: TaskStatus, **kwargs):
                 setattr(task, key, value)
         db.session.commit()
         logger.debug(f"Task updated: {task_uuid} - {status.value}")
-
-
-def update_task_progress(task_id: int, progress: int, message: Optional[str] = None):
-    """更新任务进度"""
-    try:
-        task = db.session.get(BackgroundTask, task_id)
-        if task:
-            task.progress = progress
-            if message:
-                task.progress_message = message
-            db.session.commit()
-            logger.debug(f"Task progress updated: {task.uuid} - {progress}%")
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Task progress update failed: {task_id}(db id) - {str(e)}")
-        raise
-
-
-def get_pending_tasks():
-    """获取待处理的任务"""
-    stmt = (select(BackgroundTask)
-            .where(BackgroundTask.status == TaskStatus.PENDING.value)
-            .order_by(BackgroundTask.created_at))
-    return db.session.scalars(stmt).all()

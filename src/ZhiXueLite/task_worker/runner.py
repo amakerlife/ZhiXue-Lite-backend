@@ -62,6 +62,7 @@ def execute_task(task_uuid: str, task_id: int, task_type: str, user_id: int, par
 
         except Exception as e:
             logger.error(f"Task failed: {task_uuid} - {str(e)}")
+            session.rollback()
             return 1
 
 

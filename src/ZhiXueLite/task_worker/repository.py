@@ -38,22 +38,17 @@ def update_task_status(session: Session, task_uuid: str, status: TaskStatus, **k
                 setattr(task, key, value)
 
 
-def update_task_progress(session: Session, task_id: int, progress: int, message: Optional[str] = None):
-    """更新任务进度 - 立即提交进度更新到数据库"""
+def update_task_progress(task_id: int, progress: int, message: Optional[str] = None):
+    """更新任务进度"""
     try:
-        task = session.get(BackgroundTask, task_id)
-        if task:
-            task.progress = progress
-            if message:
-                task.progress_message = message
-            session.commit()
-
+        with get_session() as session:
+            task = session.get(BackgroundTask, task_id)
+            if task:
+                task.progress = progress
+                if message:
+                    task.progress_message = message
     except Exception as e:
         logger.error(f"Failed to update task progress: {e}")
-        try:
-            session.rollback()
-        except Exception:
-            pass
 
 
 def get_cancelling_tasks() -> list[BackgroundTask]:

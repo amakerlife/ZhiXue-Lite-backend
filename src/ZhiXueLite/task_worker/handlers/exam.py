@@ -3,7 +3,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.database.models import Exam, ExamSchool, Score, Student, UserExam, User, ZhiXueTeacherAccount
+from app.database.models import Exam, ExamSchool, Score, Student, UserExam, User, ZhiXueStudentAccount, ZhiXueTeacherAccount
 from app.models.student import login_student_session
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
@@ -38,26 +38,20 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
         except KeyError:
             raise ValueError("Missing school_id or zhixue_id in parameters")
 
-        update_task_progress(session, task_id, 10, "正在获取用户信息...")
+        update_task_progress(task_id, 20, "正在登录智学网...")
 
-        # 获取用户信息
-        user = session.get(User, user_id)
-        if not user or not user.zhixue:
-            raise ValueError("User not bound to Zhixue account")
-
-        update_task_progress(session, task_id, 20, "正在登录智学网...")
-        if not user.zhixue.cookie:
-            raise ValueError("User cookie is empty")
-
-        student_account = login_student_session(user.zhixue.cookie, user.zhixue.is_parent)
-        if decrypt(user.zhixue.cookie) != student_account.get_cookie():
-            user.zhixue.cookie = encrypt(student_account.get_cookie())
+        zhixue_account = session.get(ZhiXueStudentAccount, zhixue_id)
+        if not zhixue_account or not zhixue_account.cookie:
+            raise ValueError("Zhixue account not found or cookie is empty")
+        student_account = login_student_session(zhixue_account.cookie, zhixue_account.is_parent)
+        if decrypt(zhixue_account.cookie) != student_account.get_cookie():
+            zhixue_account.cookie = encrypt(student_account.get_cookie())
             session.flush()
 
-        update_task_progress(session, task_id, 40, "正在拉取考试数据...")
+        update_task_progress(task_id, 40, "正在拉取考试数据...")
         exams = student_account.get_exams()
 
-        update_task_progress(session, task_id, 50, "正在处理考试数据...")
+        update_task_progress(task_id, 50, "正在处理考试数据...")
 
         total_exams = len(exams)
 
@@ -105,7 +99,6 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
             if i % 20 == 0 or i == total_exams - 1:
                 progress = 50 + (i + 1) / total_exams * 49
                 update_task_progress(
-                    session,
                     task_id,
                     int(progress),
                     f"已处理 {i + 1}/{total_exams} 个考试"
@@ -113,7 +106,7 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
 
         session.flush()
 
-        update_task_progress(session, task_id, 100, "任务完成")
+        update_task_progress(task_id, 100, "任务完成")
         return {"success": True}
 
     except Exception as e:
@@ -142,11 +135,11 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
         )
         exam_school = session.scalar(stmt)
         if exam_school and exam_school.is_saved and not force_refresh:
-            update_task_progress(session, task_id, 100, "该学校考试数据已被保存，无需重复拉取")
+            update_task_progress(task_id, 100, "该学校考试数据已被保存，无需重复拉取")
             return {"success": True}
 
     try:
-        update_task_progress(session, task_id, 10, "正在获取可用账号...")
+        update_task_progress(task_id, 10, "正在获取可用账号...")
         stmt = select(User).where(User.id == user_id)
         user = session.scalar(stmt)
         teacher_account = get_teacher(session, exam_id, school_id)
@@ -187,7 +180,7 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
             session.add(exam_school)
             session.flush()
 
-        update_task_progress(session, task_id, 30, "正在拉取考试成绩...")
+        update_task_progress(task_id, 30, "正在拉取考试成绩...")
         student_scores = teacher.get_exam_scores(exam_id, force_calculate)
         total_students = len(student_scores)
 
@@ -251,11 +244,11 @@ def fetch_exam_details_handler(session: Session, task_id: int, user_id: int, par
             if i % 50 == 0 or i == total_students - 1:
                 session.flush()
                 progress = int(50 + (i + 1) / total_students * 49)
-                update_task_progress(session, task_id, progress, f"已处理 {i + 1}/{total_students} 个学生")
+                update_task_progress(task_id, progress, f"已处理 {i + 1}/{total_students} 个学生")
 
         exam_school.is_saved = True
 
-        update_task_progress(session, task_id, 100, "任务完成")
+        update_task_progress(task_id, 100, "任务完成")
 
         return {"success": True}
 
@@ -270,7 +263,7 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
         school_id = parameters.get("school_id", None)
         query_parameters = parameters.get("query_parameters", {})
 
-        update_task_progress(session, task_id, 10, "正在获取可用账号...")
+        update_task_progress(task_id, 10, "正在获取可用账号...")
         teacher_account = get_teacher(session, "", school_id)
         teacher = login_teacher_session(teacher_account.cookie)
         if decrypt(teacher_account.cookie) != teacher.get_cookie():
@@ -280,7 +273,7 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
                 teacher_account.login_method = actual_method
             session.flush()
 
-        update_task_progress(session, task_id, 30, "正在拉取考试数据...")
+        update_task_progress(task_id, 30, "正在拉取考试数据...")
         exams = teacher.get_exam_list(query_parameters)
 
         total_exams = len(exams)
@@ -315,7 +308,6 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
             if i % 20 == 0 or i == total_exams - 1:
                 progress = 50 + (i + 1) / total_exams * 49
                 update_task_progress(
-                    session,
                     task_id,
                     int(progress),
                     f"已处理 {i + 1}/{total_exams} 个考试"
@@ -323,7 +315,7 @@ def fetch_school_exam_list_handler(session: Session, task_id: int, user_id: int,
 
         session.flush()
 
-        update_task_progress(session, task_id, 100, "任务完成")
+        update_task_progress(task_id, 100, "任务完成")
         return {"success": True}
 
     except Exception as e:
