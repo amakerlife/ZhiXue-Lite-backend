@@ -229,6 +229,7 @@ def fetch_exam_list():
         task = create_task(
             task_type="fetch_student_exam_list",
             user_id=current_user.id,
+            parameters={"school_id": current_user.school_id, "zhixue_id": current_user.zhixue.id},
             timeout=180
         )
         return jsonify({

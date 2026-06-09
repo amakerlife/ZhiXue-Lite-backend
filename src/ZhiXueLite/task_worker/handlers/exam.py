@@ -32,6 +32,12 @@ def get_teacher(session: Session, exam_id: str, school_id: str | None = None) ->
 def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int, parameters: dict[str, Any]):
     """拉取学生考试列表"""
     try:
+        try:
+            school_id = parameters["school_id"]
+            zhixue_id = parameters["zhixue_id"]
+        except KeyError:
+            raise ValueError("Missing school_id or zhixue_id in parameters")
+
         update_task_progress(session, task_id, 10, "正在获取用户信息...")
 
         # 获取用户信息
@@ -70,13 +76,13 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
 
             # 检查/创建 ExamSchool 关联（联考）
             stmt = select(ExamSchool).where(
-                (ExamSchool.exam_id == exam.id) & (ExamSchool.school_id == user.school_id)
+                (ExamSchool.exam_id == exam.id) & (ExamSchool.school_id == school_id)
             )
             exam_school = session.scalar(stmt)
             if not exam_school:
                 exam_school = ExamSchool(
                     exam_id=exam.id,
-                    school_id=user.school_id,
+                    school_id=school_id,
                     is_saved=False
                 )
                 session.add(exam_school)
@@ -84,14 +90,14 @@ def fetch_student_exam_list_handler(session: Session, task_id: int, user_id: int
 
             # 检查用户考试记录是否已存在
             stmt = select(UserExam).where(
-                (UserExam.zhixue_id == user.zhixue.id) &
+                (UserExam.zhixue_id == zhixue_id) &
                 (UserExam.exam_id == exam.id)
             )
             user_exam = session.scalar(stmt)
 
             if not user_exam:
                 new_user_exam = UserExam(
-                    zhixue_id=user.zhixue.id,
+                    zhixue_id=zhixue_id,
                     exam_id=exam.id
                 )
                 session.add(new_user_exam)
