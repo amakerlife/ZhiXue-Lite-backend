@@ -206,7 +206,7 @@ def get_fetch_params():
     }), 200
 
 
-@exam_bp.route("/list/fetch", methods=["GET", "POST"])
+@exam_bp.route("/list/fetch", methods=["POST"])
 @login_required
 @permission_required(PermissionType.FETCH_DATA, "self")
 @limiter.limit("3 per 20 minutes", key_func=get_user_limit)
@@ -323,7 +323,7 @@ def get_exam_info(exam_id):
     }), 200
 
 
-@exam_bp.route("/<string:exam_id>/fetch", methods=["GET", "POST"])
+@exam_bp.route("/<string:exam_id>/fetch", methods=["POST"])
 @login_required
 @permission_required(PermissionType.FETCH_DATA, "self")
 @limiter.limit("5 per 20 minutes", key_func=get_user_limit)
@@ -435,6 +435,10 @@ def get_user_exam_score(exam_id):
         )
         if not db.session.scalar(stmt):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
+        if student_id is not None and student_id != current_user.student_id:
+            return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
+        if student_name is not None:
+            return jsonify({"success": False, "message": "无权使用学生姓名查询成绩"}), 403
 
     if student_name is not None:
         stmt = (
@@ -543,13 +547,16 @@ def get_user_exam_score(exam_id):
 
 @exam_bp.route("/<string:exam_id>/scoresheet", methods=["GET"])
 @login_required
-@permission_required(PermissionType.EXPORT_SCORE_SHEET, "self")
+@permission_required(PermissionType.EXPORT_SCORE_SHEET, "school")
 def generate_scoresheet(exam_id):
     """
     生成指定考试的成绩单 Excel 文件
     """
     scope = request.args.get("scope", "school", type=str)  # school or all
     school_id = request.args.get("school_id", "", type=str)
+
+    if scope not in ["school", "all"]:
+        return jsonify({"success": False, "message": "参数不合法"}), 400
 
     if (scope == "school" and school_id == "" and current_user.school_id is None):
         return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
