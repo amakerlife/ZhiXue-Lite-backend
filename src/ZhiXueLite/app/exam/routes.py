@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+from dataclasses import dataclass
 from flask import Blueprint, request, jsonify, send_file
 from flask_login import login_required, current_user
 from functools import wraps
@@ -8,7 +9,18 @@ import time
 from openpyxl import Workbook
 from sqlalchemy import func, select
 from app.database import db
-from app.database.models import Exam, ExamSchool, PermissionLevel, Score, Student, User, UserExam, ZhiXueTeacherAccount, PermissionType
+from app.database.models import (
+    Exam,
+    ExamSchool,
+    PermissionLevel,
+    PermissionType,
+    School,
+    Score,
+    Student,
+    User,
+    UserExam,
+    ZhiXueTeacherAccount,
+)
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
 from app.task.repository import create_task
@@ -17,6 +29,12 @@ from app import limiter
 from flask_limiter.util import get_remote_address
 
 exam_bp = Blueprint("exam", __name__)
+
+
+@dataclass
+class ResolvedStudentContext:
+    student_id: str
+    school_id: str
 
 
 def get_ip_limit():
@@ -79,6 +97,138 @@ def has_permission(type: PermissionType, scope: str) -> bool:
         return current_user.has_permission(type, PermissionLevel.GLOBAL)
     else:
         return False
+
+
+def _normalize_optional_arg(value: str | None) -> str | None:
+    return value if value else None
+
+
+def _get_student_score_school_id(
+    exam_id: str,
+    student_id: str,
+    school_ids: list[str] | None = None
+) -> str | None:
+    """返回学生在指定考试和学校范围内的成绩所属学校 ID"""
+    if school_ids is not None and len(school_ids) == 0:
+        return None
+
+    stmt = (
+        select(Score.school_id)
+        .where((Score.exam_id == exam_id) & (Score.student_id == student_id))
+        .distinct()
+        .order_by(Score.school_id)
+    )
+    if school_ids is not None:
+        stmt = stmt.where(Score.school_id.in_(school_ids))
+
+    return db.session.scalars(stmt).first()
+
+
+def _find_students_by_name(exam_id: str, student_name: str, school_ids: list[str]):
+    """在指定学校范围内按姓名查找考试学生及消歧义信息"""
+    if len(school_ids) == 0:
+        return []
+
+    stmt = (
+        select(
+            Student.id,
+            Score.school_id,
+            func.min(School.name).label("school_name"),
+            func.min(Score.class_name).label("class_name")
+        )
+        .join(Score, Student.id == Score.student_id)
+        .join(School, Score.school_id == School.id)
+        .where(
+            (Score.exam_id == exam_id) &
+            (Score.school_id.in_(school_ids)) &
+            (Student.name == student_name)
+        )
+        .group_by(Student.id, Score.school_id)
+        .order_by(Score.school_id, Student.id)
+    )
+    return db.session.execute(stmt).all()
+
+
+def _multiple_student_matches_response(matches):
+    details = [
+        f"{student_id}（{school_name or '未知学校'}，{class_name or '未知班级'}）"
+        for student_id, _school_id, school_name, class_name in matches
+    ]
+    return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(details)}"}), 400
+
+
+def _resolve_exam_student_context(
+    exam: Exam,
+    requested_student_id: str | None,
+    requested_student_name: str | None,
+    requested_school_id: str | None,
+    require_score_school: bool = False
+):
+    """解析当前请求实际可访问的学生 ID 和学校 ID"""
+    requested_student_id = _normalize_optional_arg(requested_student_id)
+    requested_student_name = _normalize_optional_arg(requested_student_name)
+    requested_school_id = _normalize_optional_arg(requested_school_id)
+    exam_school_ids = exam.get_school_ids()
+
+    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
+        search_school_ids = exam_school_ids
+        if requested_school_id:
+            if requested_school_id not in exam_school_ids:
+                return None, (jsonify({"success": False, "message": "该学校未参与此次考试"}), 400)
+            search_school_ids = [requested_school_id]
+    elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
+        if current_user.school_id is None or current_user.school_id not in exam_school_ids:
+            return None, (jsonify({"success": False, "message": "无权访问该考试"}), 403)
+        search_school_ids = [str(current_user.school_id)]
+    elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
+        if current_user.zhixue is None:
+            return None, (jsonify({"success": False, "message": "请先绑定智学网账号"}), 401)
+        stmt = select(UserExam).where(
+            (UserExam.exam_id == exam.id) &
+            (UserExam.zhixue_id == current_user.zhixue_account_id)
+        )
+        if not db.session.scalar(stmt):
+            return None, (jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403)
+
+        student_id = current_user.student_id
+        if student_id is None:
+            return None, (jsonify({"success": False, "message": "用户未绑定学生账号"}), 400)
+
+        score_school_id = _get_student_score_school_id(exam.id, student_id)
+        if require_score_school and score_school_id is None:
+            return None, (jsonify({"success": False, "message": "未找到该学生成绩数据"}), 404)
+
+        school_id = score_school_id or current_user.school_id
+        if school_id is None:
+            return None, (jsonify({"success": False, "message": "请先绑定智学网账号或联系管理员分配学校"}), 400)
+        return ResolvedStudentContext(student_id=student_id, school_id=str(school_id)), None
+    else:
+        return None, (jsonify({"success": False, "message": "Access Denied"}), 403)
+
+    if requested_student_id is not None and requested_student_name is not None:
+        return None, (jsonify({"success": False, "message": "不可同时指定学生 ID 和姓名"}), 400)
+
+    if requested_student_name is not None:
+        matches = _find_students_by_name(exam.id, requested_student_name, search_school_ids)
+        if len(matches) == 0:
+            return None, (jsonify({"success": False, "message": "未找到该学生"}), 404)
+        if len(matches) > 1:
+            return None, _multiple_student_matches_response(matches)
+
+        student_id, school_id, _school_name, _class_name = matches[0]
+        return ResolvedStudentContext(student_id=student_id, school_id=school_id), None
+
+    student_id = requested_student_id
+    if student_id is None:
+        student_id = current_user.student_id
+    if student_id is None:
+        return None, (jsonify({"success": False, "message": "请指定学生 ID 或姓名"}), 400)
+
+    school_id = _get_student_score_school_id(exam.id, student_id, search_school_ids)
+    if school_id is None:
+        return None, (jsonify({"success": False, "message": "未找到该学生成绩数据"}), 404)
+
+    return ResolvedStudentContext(student_id=student_id, school_id=school_id), None
 
 
 @exam_bp.route("/list", methods=["GET"])
@@ -400,75 +550,31 @@ def get_user_exam_score(exam_id):
     Args:
         exam_id (str): 路径参数，考试 ID
         student_id (str, optional): 查询参数，学生 ID，默认为当前用户绑定的智学网账号
-        student_name (str, optional): 查询参数，学生姓名，不可与 student_id 同时指定，且使用时必须指定学校 ID
-        school_id (str, optional): 查询参数，学校 ID，默认为当前用户所在学校
+        student_name (str, optional): 查询参数，学生姓名，不可与 student_id 同时指定
+        school_id (str, optional): 查询参数，GLOBAL 用户可用于缩小学校范围
     """
     student_id = request.args.get("student_id", None)
     student_name = request.args.get("student_name", None)
     school_id = request.args.get("school_id", None)
-
-    if student_id is not None and student_name is not None:
-        return jsonify({"success": False, "message": "不可同时指定学生 ID 和姓名"}), 400
-
-    if student_name and school_id is None:
-        return jsonify({"success": False, "message": "使用学生姓名查询时必须指定学校 ID"}), 400
 
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    if school_id and school_id not in exam.get_school_ids():
-        return jsonify({"success": False, "message": "该学校未参与此次考试"}), 400
+    resolved_context, error_response = _resolve_exam_student_context(
+        exam,
+        student_id,
+        student_name,
+        school_id
+    )
+    if error_response is not None:
+        return error_response
+    if resolved_context is None:
+        return jsonify({"success": False, "message": "Access Denied"}), 403
 
-    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
-        pass
-    elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
-        if current_user.school_id is None or current_user.school_id not in exam.get_school_ids():
-            return jsonify({"success": False, "message": "无权访问该考试"}), 403
-    elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
-        if current_user.zhixue is None:
-            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
-        stmt = select(UserExam).where(
-            (UserExam.exam_id == exam_id) &
-            (UserExam.zhixue_id == current_user.zhixue_account_id)
-        )
-        if not db.session.scalar(stmt):
-            return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
-        if student_id is not None and student_id != current_user.student_id:
-            return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
-        if student_name is not None:
-            return jsonify({"success": False, "message": "无权使用学生姓名查询成绩"}), 403
-
-    if student_name is not None:
-        stmt = (
-            select(Student.id, func.min(Score.class_name).label("class_name"))
-            .join(Score, Student.id == Score.student_id)
-            .where(
-                (Score.exam_id == exam_id) &
-                (Score.school_id == school_id) &
-                (Student.name == student_name)
-            )
-            .group_by(Student.id)
-            .order_by(Student.id)
-        )
-        matches = db.session.execute(stmt).all()
-        if len(matches) == 0:
-            return jsonify({"success": False, "message": "未找到该学生"}), 404
-
-        if len(matches) > 1:
-            details = [f"{sid}（{(class_name or '未知班级')}）" for sid, class_name in matches]
-            return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(details)}"}), 400
-
-        student_id = matches[0][0]
-
-    if student_id is None:
-        student_id = current_user.student_id
-
-    if school_id is None:
-        if current_user.school_id is None:
-            return jsonify({"success": False, "message": "请指定学校 ID"}), 400
-        school_id = str(current_user.school_id)
+    student_id = resolved_context.student_id
+    school_id = resolved_context.school_id
 
     # 构建成绩数据
     stmt = select(Score).where(
@@ -515,23 +621,15 @@ def get_user_exam_score(exam_id):
 
     # 参考学校
     is_multi_school = len(exam.schools) > 1
-    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
-        # GLOBAL 权限：返回所有参考学校
-        schools = exam.get_schools_saved_status()
-    elif school_id:
-        # 指定了 school_id：只返回该学校信息
-        schools = [
-            {
-                "school_id": es.school_id,
-                "school_name": es.school.name if es.school else None,
-                "is_saved": es.is_saved
-            }
-            for es in exam.schools
-            if es.school_id == school_id
-        ]
-    else:
-        # 无学校信息：返回空列表
-        schools = []
+    schools = [
+        {
+            "school_id": es.school_id,
+            "school_name": es.school.name if es.school else None,
+            "is_saved": es.is_saved
+        }
+        for es in exam.schools
+        if es.school_id == school_id
+    ]
 
     return jsonify({
         "success": True,
@@ -558,26 +656,22 @@ def generate_scoresheet(exam_id):
     if scope not in ["school", "all"]:
         return jsonify({"success": False, "message": "参数不合法"}), 400
 
-    if (scope == "school" and school_id == "" and current_user.school_id is None):
-        return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
-    if scope == "school" and school_id == "":
-        school_id = str(current_user.school_id)
-
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
-    if scope == "school" and school_id not in exam.get_school_ids():
-        return jsonify({"success": False, "message": "该学校未参与此次考试"}), 400
-
-    if (scope == "school" and not exam.is_saved_for_school(school_id)):
-        return jsonify({"success": False, "message": "考试数据尚未保存，请先拉取考试详情"}), 400
 
     if current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.GLOBAL):
-        pass
+        if scope == "school" and school_id == "":
+            if current_user.school_id is None:
+                return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
+            school_id = str(current_user.school_id)
     elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SCHOOL):
-        if scope == "all" or school_id != current_user.school_id:
+        if scope == "all":
             return jsonify({"success": False, "message": "无权访问该考试"}), 403
+        if current_user.school_id is None:
+            return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
+        school_id = str(current_user.school_id)
     elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SELF):
         if scope == "all":
             return jsonify({"success": False, "message": "无权访问该考试"}), 403
@@ -589,6 +683,14 @@ def generate_scoresheet(exam_id):
         )
         if not db.session.scalar(stmt):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
+    else:
+        return jsonify({"success": False, "message": "Access Denied"}), 403
+
+    if scope == "school" and school_id not in exam.get_school_ids():
+        return jsonify({"success": False, "message": "该学校未参与此次考试"}), 400
+
+    if scope == "school" and not exam.is_saved_for_school(school_id):
+        return jsonify({"success": False, "message": "考试数据尚未保存，请先拉取考试详情"}), 400
 
     stmt = select(Score).where(Score.exam_id == exam_id)
     if scope == "school":
@@ -752,62 +854,25 @@ def generate_answersheet(exam_id, subject_id):
     student_name = request.args.get("student_name", None)
     school_id = request.args.get("school_id", None)
 
-    if student_id is not None and student_name is not None:
-        return jsonify({"success": False, "message": "不可同时指定学生 ID 和姓名"}), 400
-
-    if student_name and school_id is None:
-        return jsonify({"success": False, "message": "使用学生姓名查询时必须指定学校 ID"}), 400
-
     stmt = select(Exam).where(Exam.id == exam_id)
     exam = db.session.scalar(stmt)
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    if len(exam.schools) > 1 and school_id is None:
-        return jsonify({"success": False, "message": "该考试为联考，必须指定学校 ID"}), 400
+    resolved_context, error_response = _resolve_exam_student_context(
+        exam,
+        student_id,
+        student_name,
+        school_id,
+        require_score_school=True
+    )
+    if error_response is not None:
+        return error_response
+    if resolved_context is None:
+        return jsonify({"success": False, "message": "Access Denied"}), 403
 
-    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
-        pass
-    elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
-        if current_user.school_id is None or current_user.school_id not in exam.get_school_ids():
-            return jsonify({"success": False, "message": "无权访问该考试"}), 403
-    elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
-        if current_user.zhixue is None:
-            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
-        stmt = select(UserExam).where(
-            (UserExam.exam_id == exam_id) &
-            (UserExam.zhixue_id == current_user.zhixue_account_id)
-        )
-        if not db.session.scalar(stmt):
-            return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
-        if student_id is not None and student_id != current_user.student_id:
-            return jsonify({"success": False, "message": "权限不足，只能查看自己的成绩"}), 403
-        if student_name is not None:
-            return jsonify({"success": False, "message": "无权使用学生姓名查询成绩"}), 403
-
-    if student_name is not None:
-        stmt = (
-            select(Student.id, func.min(Score.class_name).label("class_name"))
-            .join(Score, Student.id == Score.student_id)
-            .where(
-                (Score.exam_id == exam_id) &
-                (Score.school_id == school_id) &
-                (Student.name == student_name)
-            )
-            .group_by(Student.id)
-            .order_by(Student.id)
-        )
-        matches = db.session.execute(stmt).all()
-        if len(matches) == 0:
-            return jsonify({"success": False, "message": "未找到该学生"}), 404
-
-        if len(matches) > 1:
-            details = [f"{sid}（{(class_name or '班级未知')}）" for sid, class_name in matches]
-            return jsonify({"success": False, "message": f"匹配到多个学生：{', '.join(details)}"}), 400
-
-        student_id = matches[0][0]
-
-    student_id = current_user.student_id if not student_id else student_id
+    student_id = resolved_context.student_id
+    school_id = resolved_context.school_id
 
     cache_dir = Path(__file__).parents[4] / "cache"
     os.makedirs(cache_dir, exist_ok=True)
@@ -817,7 +882,7 @@ def generate_answersheet(exam_id, subject_id):
     if os.path.exists(file_path):
         return send_file(
             file_path,
-            download_name=f"answersheet_{exam_id}_{subject_id}_{student_id}.png",
+            download_name=filename,
             mimetype="image/png"
         )
 
@@ -832,6 +897,6 @@ def generate_answersheet(exam_id, subject_id):
 
     return send_file(
         file_path,
-        download_name=f"answersheet_{exam_id}_{subject_id}_{student_id}.png",
+        download_name=filename,
         mimetype="image/png"
     )

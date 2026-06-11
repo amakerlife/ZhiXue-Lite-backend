@@ -6,9 +6,11 @@
 import time
 from io import BytesIO
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch, Mock
 import pytest
 from openpyxl import load_workbook
+from PIL import Image
 from app.database.models import User, School, ZhiXueStudentAccount, ZhiXueTeacherAccount, Exam, ExamSchool, UserExam, Student, Score
 from app.utils.crypto import encrypt
 
@@ -159,6 +161,17 @@ def login_user(client, username="testuser", password="password123"):
     })
     assert response.status_code == 200
     return response
+
+
+def answersheet_cache_path(exam_id, subject_id, student_id):
+    return Path(__file__).parents[1] / "cache" / f"answersheet_{exam_id}_{subject_id}_{student_id}.png"
+
+
+def mock_answersheet_image(mock_login_teacher):
+    mock_teacher_session = Mock()
+    mock_teacher_session.process_answersheet.return_value = Image.new("RGB", (1, 1), "white")
+    mock_login_teacher.return_value = mock_teacher_session
+    return mock_teacher_session
 
 
 def test_exam_list_requires_login(client):
@@ -1174,11 +1187,27 @@ def test_get_exam_score_success_self(client, user_with_zhixue, exam_with_scores)
     assert data["scores"][1]["origin_score"] is None
 
 
+def test_get_exam_score_self_ignores_target_params(client, user_with_zhixue, exam_with_scores):
+    """SELF 权限忽略客户端传入的学生和学校参数，固定返回本人结果"""
+    login_user(client)
+
+    response = client.get(
+        f"/exam/{exam_with_scores.id}/score"
+        "?student_id=student_002&student_name=李四&school_id=other_school"
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == user_with_zhixue.zhixue_account_id
+    assert len(data["scores"]) == 2
+
+
 def test_get_exam_score_by_student_id(client, db, admin_user, exam_with_scores, school):
-    """测试通过 student_id 查询成绩（GLOBAL 权限）"""
+    """GLOBAL 权限通过 student_id 查询成绩时无需指定 school_id"""
     login_user(client, username="admin", password="adminpass")
 
-    response = client.get(f"/exam/{exam_with_scores.id}/score?student_id=student_002&school_id={school.id}")
+    response = client.get(f"/exam/{exam_with_scores.id}/score?student_id=student_002")
 
     assert response.status_code == 200
     data = response.get_json()
@@ -1226,7 +1255,76 @@ def test_get_exam_score_both_id_and_name_error(client, admin_user, exam_with_sco
 
 
 def test_get_exam_score_name_without_school_id(client, admin_user, exam_with_scores):
-    """测试使用 student_name 但不指定 school_id 返回错误"""
+    """GLOBAL 权限使用 student_name 查询时，school_id 是可选过滤条件"""
+    login_user(client, username="admin", password="adminpass")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/score?student_name=李四")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == "student_002"
+    assert len(data["scores"]) == 1
+
+
+def test_get_exam_score_school_ignores_requested_school_id(client, db, school_admin, exam_with_scores, school):
+    """SCHOOL 权限固定使用本校范围，忽略客户端传入的其他 school_id"""
+    other_school = School(id="score_other_school", name="成绩查询其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam_with_scores.id, school_id=other_school.id, is_saved=True)
+    db.session.add(exam_school)
+    db.session.commit()
+
+    login_user(client, username="schooladmin", password="password123")
+
+    response = client.get(
+        f"/exam/{exam_with_scores.id}/score?student_id=student_002&school_id={other_school.id}"
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == "student_002"
+    assert data["schools"][0]["school_id"] == school.id
+
+
+def test_get_exam_score_global_name_multiple_matches_include_school_and_class(
+    client,
+    db,
+    admin_user,
+    exam_with_scores,
+):
+    """GLOBAL 权限姓名查询跨校重名时，消歧信息包含学校和班级"""
+    other_school = School(id="score_name_other_school", name="重名其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam_with_scores.id, school_id=other_school.id, is_saved=True)
+    student = Student(
+        id="student_003",
+        name="李四",
+        label="标签 3",
+        no="003",
+        number="100003"
+    )
+    score = Score(
+        student_id=student.id,
+        exam_id=exam_with_scores.id,
+        school_id=other_school.id,
+        subject_id="subject_001",
+        subject_name="语文",
+        class_name="二班",
+        sort=1,
+        score="80",
+        standard_score="80",
+        class_rank="8",
+        school_rank="20"
+    )
+    db.session.add_all([exam_school, student, score])
+    db.session.commit()
+
     login_user(client, username="admin", password="adminpass")
 
     response = client.get(f"/exam/{exam_with_scores.id}/score?student_name=李四")
@@ -1234,7 +1332,17 @@ def test_get_exam_score_name_without_school_id(client, admin_user, exam_with_sco
     assert response.status_code == 400
     data = response.get_json()
     assert data["success"] is False
-    assert "必须指定学校 ID" in data["message"]
+    assert "匹配到多个学生" in data["message"]
+    assert "测试中学" in data["message"]
+    assert "一班" in data["message"]
+    assert "重名其他学校" in data["message"]
+    assert "二班" in data["message"]
+
+    filtered_response = client.get(
+        f"/exam/{exam_with_scores.id}/score?student_name=李四&school_id=school_001"
+    )
+    assert filtered_response.status_code == 200
+    assert filtered_response.get_json()["student_id"] == "student_002"
 
 
 def test_get_exam_score_exam_not_found(client, user_with_zhixue):
@@ -1495,7 +1603,7 @@ def test_fetch_exam_details_requires_permission(client, db):
 def test_export_scoresheet_success(client, user_with_zhixue, exam_with_scores, school):
     """测试成功导出成绩单（Excel 文件）"""
     # 修改用户权限以允许导出
-    user_with_zhixue.permissions = "10111"  # EXPORT_SCORE_SHEET=1
+    user_with_zhixue.permissions = "10112"  # EXPORT_SCORE_SHEET=SCHOOL
     from app.database import db as _db
     _db.session.commit()
 
@@ -1511,7 +1619,7 @@ def test_export_scoresheet_success(client, user_with_zhixue, exam_with_scores, s
 
 def test_export_scoresheet_assigned_subject_columns(client, user_with_zhixue, exam_with_scores, school):
     """测试赋分科目导出列：应包含原始分/赋分，非赋分科目保留成绩列"""
-    user_with_zhixue.permissions = "10111"
+    user_with_zhixue.permissions = "10112"
     from app.database import db as _db
     _db.session.commit()
 
@@ -1567,7 +1675,7 @@ def test_export_scoresheet_no_data(client, user_with_zhixue, db, school, zhixue_
     db.session.commit()
 
     # 修改权限以允许导出
-    user_with_zhixue.permissions = "10111"
+    user_with_zhixue.permissions = "10112"
     from app.database import db as _db
     _db.session.commit()
 
@@ -1849,13 +1957,13 @@ def test_export_scoresheet_school_not_in_exam(client, admin_user, exam_with_scor
     assert "该学校未参与此次考试" in data["message"]
 
 
-def test_export_scoresheet_self_permission_scope_all_denied(client, db, exam_with_scores):
-    """测试 SELF 权限用户无法使用 scope=all"""
+def test_export_scoresheet_school_permission_scope_all_denied(client, db, exam_with_scores):
+    """测试 SCHOOL 权限用户无法使用 scope=all"""
     user = User(
         username="selfuser",
         email="self@example.com",
         role="user",
-        permissions="10111",  # SELF 权限
+        permissions="10112",  # EXPORT_SCORE_SHEET=SCHOOL
         created_at=datetime.utcnow(),
         email_verified=True,
         zhixue_account_id="zx_self",
@@ -1890,9 +1998,9 @@ def test_export_scoresheet_self_permission_scope_all_denied(client, db, exam_wit
 # answersheet 边界场景测试
 
 
-def test_answersheet_both_id_and_name_error(client, user_with_zhixue, exam_with_scores):
-    """测试同时指定 student_id 和 student_name 返回错误"""
-    login_user(client)
+def test_answersheet_both_id_and_name_error(client, admin_user, exam_with_scores):
+    """SCHOOL/GLOBAL 权限同时指定 student_id 和 student_name 返回错误"""
+    login_user(client, username="admin", password="adminpass")
 
     response = client.get(
         f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_id=stu_001&student_name=张三")
@@ -1902,22 +2010,54 @@ def test_answersheet_both_id_and_name_error(client, user_with_zhixue, exam_with_
     assert "不可同时指定" in data["message"]
 
 
-def test_answersheet_name_without_school_id(client, user_with_zhixue, exam_with_scores):
-    """测试使用 student_name 但不指定 school_id"""
+@patch("app.exam.routes.login_teacher_session")
+@patch("app.exam.routes.get_teacher")
+def test_answersheet_self_ignores_name_without_school_id(
+    mock_get_teacher,
+    mock_login_teacher,
+    client,
+    user_with_zhixue,
+    exam_with_scores,
+    teacher_account,
+    school
+):
+    """SELF 权限忽略 student_name，不需要客户端提供 school_id"""
+    cache_file = answersheet_cache_path(exam_with_scores.id, "subject_001", user_with_zhixue.zhixue_account_id)
+    cache_file.unlink(missing_ok=True)
+    mock_get_teacher.return_value = teacher_account
+    mock_teacher_session = mock_answersheet_image(mock_login_teacher)
+
     login_user(client)
 
-    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_name=张三")
+    response = None
+    try:
+        response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_name=张三")
+        assert response.status_code == 200
+        assert response.content_type == "image/png"
+        mock_get_teacher.assert_called_once_with(exam_with_scores.id, school_id=school.id)
+        mock_teacher_session.process_answersheet.assert_called_once_with(
+            "subject_001",
+            user_with_zhixue.zhixue_account_id
+        )
+    finally:
+        if response is not None:
+            response.close()
+        cache_file.unlink(missing_ok=True)
 
-    assert response.status_code == 400
-    data = response.get_json()
-    assert "必须指定学校 ID" in data["message"]
 
-
-def test_answersheet_multi_school_exam_no_school_id(client, user_with_zhixue, db):
-    """测试联考必须指定 school_id"""
+@patch("app.exam.routes.login_teacher_session")
+@patch("app.exam.routes.get_teacher")
+def test_answersheet_multi_school_exam_no_school_id(
+    mock_get_teacher,
+    mock_login_teacher,
+    client,
+    user_with_zhixue,
+    db
+):
+    """联考不传 school_id 时，通过成绩记录推导最终学校"""
     # 创建两个学校
-    school1 = School(id="school_ms_1", name="学校1")
-    school2 = School(id="school_ms_2", name="学校2")
+    school1 = School(id="school_ms_1", name="学校 1")
+    school2 = School(id="school_ms_2", name="学校 2")
     db.session.add_all([school1, school2])
 
     # 创建联考
@@ -1937,38 +2077,127 @@ def test_answersheet_multi_school_exam_no_school_id(client, user_with_zhixue, db
     # 添加 UserExam
     user_exam = UserExam(zhixue_id=user_with_zhixue.zhixue_account_id, exam_id=exam.id)
     db.session.add(user_exam)
+
+    student = Student(
+        id=user_with_zhixue.zhixue_account_id,
+        name="张三",
+        label="标签 1",
+        no="001",
+        number="100001"
+    )
+    score = Score(
+        student_id=student.id,
+        exam_id=exam.id,
+        school_id=school1.id,
+        subject_id="subject_001",
+        subject_name="语文",
+        class_name="一班",
+        sort=1,
+        score="95",
+        standard_score="95",
+        class_rank="1",
+        school_rank="1"
+    )
+    db.session.add_all([student, score])
     db.session.commit()
 
+    cache_file = answersheet_cache_path(exam.id, "subject_001", user_with_zhixue.zhixue_account_id)
+    cache_file.unlink(missing_ok=True)
+    mock_get_teacher.return_value = Mock()
+    mock_teacher_session = mock_answersheet_image(mock_login_teacher)
+
     login_user(client)
 
-    response = client.get(f"/exam/{exam.id}/subject/subject_001/answersheet")
+    response = None
+    try:
+        response = client.get(f"/exam/{exam.id}/subject/subject_001/answersheet")
+        assert response.status_code == 200
+        assert response.content_type == "image/png"
+        mock_get_teacher.assert_called_once_with(exam.id, school_id=school1.id)
+        mock_teacher_session.process_answersheet.assert_called_once_with(
+            "subject_001",
+            user_with_zhixue.zhixue_account_id
+        )
+    finally:
+        if response is not None:
+            response.close()
+        cache_file.unlink(missing_ok=True)
 
-    assert response.status_code == 400
-    data = response.get_json()
-    assert "该考试为联考，必须指定学校 ID" in data["message"]
 
+@patch("app.exam.routes.login_teacher_session")
+@patch("app.exam.routes.get_teacher")
+def test_answersheet_self_ignores_other_student_param(
+    mock_get_teacher,
+    mock_login_teacher,
+    client,
+    user_with_zhixue,
+    exam_with_scores,
+    teacher_account,
+    school
+):
+    """SELF 权限忽略其他 student_id，固定查看本人答题卡"""
+    cache_file = answersheet_cache_path(exam_with_scores.id, "subject_001", user_with_zhixue.zhixue_account_id)
+    cache_file.unlink(missing_ok=True)
+    mock_get_teacher.return_value = teacher_account
+    mock_teacher_session = mock_answersheet_image(mock_login_teacher)
 
-def test_answersheet_self_permission_other_student_denied(client, user_with_zhixue, exam_with_scores):
-    """测试 SELF 权限用户无法查看其他学生答题卡"""
     login_user(client)
 
-    response = client.get(f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_id=other_student")
+    response = None
+    try:
+        response = client.get(
+            f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet"
+            "?student_id=other_student&school_id=other_school"
+        )
+        assert response.status_code == 200
+        assert response.content_type == "image/png"
+        mock_get_teacher.assert_called_once_with(exam_with_scores.id, school_id=school.id)
+        mock_teacher_session.process_answersheet.assert_called_once_with(
+            "subject_001",
+            user_with_zhixue.zhixue_account_id
+        )
+    finally:
+        if response is not None:
+            response.close()
+        cache_file.unlink(missing_ok=True)
 
-    assert response.status_code == 403
-    data = response.get_json()
-    assert "只能查看自己的成绩" in data["message"]
 
+@patch("app.exam.routes.login_teacher_session")
+@patch("app.exam.routes.get_teacher")
+def test_answersheet_self_ignores_student_name_param(
+    mock_get_teacher,
+    mock_login_teacher,
+    client,
+    user_with_zhixue,
+    exam_with_scores,
+    teacher_account,
+    school
+):
+    """SELF 权限忽略 student_name 和 school_id，固定查看本人答题卡"""
+    cache_file = answersheet_cache_path(exam_with_scores.id, "subject_001", user_with_zhixue.zhixue_account_id)
+    cache_file.unlink(missing_ok=True)
+    mock_get_teacher.return_value = teacher_account
+    mock_teacher_session = mock_answersheet_image(mock_login_teacher)
 
-def test_answersheet_self_permission_cannot_use_name(client, user_with_zhixue, exam_with_scores, school):
-    """测试 SELF 权限用户无法使用学生姓名查询"""
     login_user(client)
 
-    response = client.get(
-        f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet?student_name=张三&school_id={school.id}")
-
-    assert response.status_code == 403
-    data = response.get_json()
-    assert "无权使用学生姓名查询成绩" in data["message"]
+    response = None
+    try:
+        response = client.get(
+            f"/exam/{exam_with_scores.id}/subject/subject_001/answersheet"
+            f"?student_name=李四&school_id=other_school"
+        )
+        assert response.status_code == 200
+        assert response.content_type == "image/png"
+        mock_get_teacher.assert_called_once_with(exam_with_scores.id, school_id=school.id)
+        mock_teacher_session.process_answersheet.assert_called_once_with(
+            "subject_001",
+            user_with_zhixue.zhixue_account_id
+        )
+    finally:
+        if response is not None:
+            response.close()
+        cache_file.unlink(missing_ok=True)
 
 
 # get_exam_score 边界场景测试
