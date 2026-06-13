@@ -176,11 +176,9 @@ def _resolve_exam_student_context(
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SCHOOL):
         # 学校权限但用户所在学校没有参与考试
         if current_user.school_id is None or current_user.school_id not in exam_school_ids:
-            return None, (jsonify({"success": False, "message": "当前学校未参与此次考试"}), 400)
+            return None, (jsonify({"success": False, "message": "当前学校未参与此次考试"}), 403)
         search_school_ids = [str(current_user.school_id)]
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
-        if requested_student_name is not None:
-            return None, (jsonify({"success": False, "message": "无权使用此参数"}), 400)
         if current_user.zhixue is None:
             return None, (jsonify({"success": False, "message": "请先绑定智学网账号"}), 401)
         stmt = select(UserExam).where(

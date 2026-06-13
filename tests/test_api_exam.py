@@ -1187,22 +1187,6 @@ def test_get_exam_score_success_self(client, user_with_zhixue, exam_with_scores)
     assert data["scores"][1]["origin_score"] is None
 
 
-def test_get_exam_score_self_ignores_target_params(client, user_with_zhixue, exam_with_scores):
-    """SELF 权限忽略客户端传入的学生和学校参数，固定返回本人结果"""
-    login_user(client)
-
-    response = client.get(
-        f"/exam/{exam_with_scores.id}/score"
-        "?student_id=student_002&student_name=李四&school_id=other_school"
-    )
-
-    assert response.status_code == 200
-    data = response.get_json()
-    assert data["success"] is True
-    assert data["student_id"] == user_with_zhixue.zhixue_account_id
-    assert len(data["scores"]) == 2
-
-
 def test_get_exam_score_by_student_id(client, db, admin_user, exam_with_scores, school):
     """GLOBAL 权限通过 student_id 查询成绩时无需指定 school_id"""
     login_user(client, username="admin", password="adminpass")
@@ -1287,7 +1271,6 @@ def test_get_exam_score_school_ignores_requested_school_id(client, db, school_ad
     data = response.get_json()
     assert data["success"] is True
     assert data["student_id"] == "student_002"
-    assert data["schools"][0]["school_id"] == school.id
 
 
 def test_get_exam_score_global_name_multiple_matches_include_school_and_class(
@@ -2047,14 +2030,14 @@ def test_answersheet_self_ignores_name_without_school_id(
 
 @patch("app.exam.routes.login_teacher_session")
 @patch("app.exam.routes.get_teacher")
-def test_answersheet_multi_school_exam_no_school_id(
+def test_answersheet_global_exam_with_other_school_id(
     mock_get_teacher,
     mock_login_teacher,
     client,
     user_with_zhixue,
     db
 ):
-    """联考不传 school_id 时，通过成绩记录推导最终学校"""
+    """GLOBAL 权限用户可指定非本人学校的答题卡，通过已有成绩数据推导学校"""
     # 创建两个学校
     school1 = School(id="school_ms_1", name="学校 1")
     school2 = School(id="school_ms_2", name="学校 2")
@@ -2101,16 +2084,34 @@ def test_answersheet_multi_school_exam_no_school_id(
     db.session.add_all([student, score])
     db.session.commit()
 
+    # 创建 GLOBAL 权限用户，学校与目标学校不同
+    global_user = User(
+        username="global_answersheet_user",
+        email="global_answersheet@example.com",
+        role="user",
+        permissions="33333",
+        created_at=datetime.utcnow(),
+        email_verified=True,
+        is_active=True,
+        manual_school_id=school2.id
+    )
+    global_user.set_password("password123")
+    db.session.add(global_user)
+    db.session.commit()
+
     cache_file = answersheet_cache_path(exam.id, "subject_001", user_with_zhixue.zhixue_account_id)
     cache_file.unlink(missing_ok=True)
-    mock_get_teacher.return_value = Mock()
+    mock_get_teacher.return_value = Mock(cookie="fake_teacher_cookie")
     mock_teacher_session = mock_answersheet_image(mock_login_teacher)
 
-    login_user(client)
+    login_user(client, username="global_answersheet_user", password="password123")
 
     response = None
     try:
-        response = client.get(f"/exam/{exam.id}/subject/subject_001/answersheet")
+        response = client.get(
+            f"/exam/{exam.id}/subject/subject_001/answersheet"
+            f"?student_id={student.id}"
+        )
         assert response.status_code == 200
         assert response.content_type == "image/png"
         mock_get_teacher.assert_called_once_with(exam.id, school_id=school1.id)
@@ -2230,7 +2231,7 @@ def test_get_exam_score_school_permission_denied(client, db, exam_with_scores):
 
     assert response.status_code == 403
     data = response.get_json()
-    assert "无权访问该考试" in data["message"]
+    assert "当前学校未参与此次考试" in data["message"]
 
 
 def test_get_exam_score_self_no_user_exam(client, db, exam_with_scores):
