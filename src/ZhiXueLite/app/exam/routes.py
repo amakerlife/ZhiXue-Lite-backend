@@ -610,6 +610,16 @@ def get_user_exam_score(exam_id):
         score["class_participant_count"] = class_participant_counts.get(score["subject_id"], -1)
 
     is_multi_school = len(exam.schools) > 1
+    # DEPRECATED: 暂时保留 schools 字段用于兼容前端。
+    schools = [
+        {
+            "school_id": es.school_id,
+            "school_name": es.school.name if es.school else None,
+            "is_saved": es.is_saved
+        }
+        for es in exam.schools
+        if es.school_id == school_id
+    ]
 
     return jsonify({
         "success": True,
@@ -619,6 +629,7 @@ def get_user_exam_score(exam_id):
         "student_id": student_id,
         "scores": scores,
         "is_multi_school": is_multi_school,
+        "schools": schools
     }), 200
 
 
