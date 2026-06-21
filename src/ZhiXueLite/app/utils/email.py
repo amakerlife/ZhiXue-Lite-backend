@@ -22,6 +22,7 @@ def get_smtp_config() -> dict:
         "username": os.getenv("SMTP_USERNAME", ""),
         "password": os.getenv("SMTP_PASSWORD", ""),
         "from_name": os.getenv("SMTP_FROM_NAME", "ZhiXue Lite"),
+        "from_address": os.getenv("SMTP_FROM_ADDRESS", os.getenv("SMTP_USERNAME", "")),
     }
 
 
@@ -52,7 +53,7 @@ def send_email(to_email: str, subject: str, text_content: Optional[str] = None, 
         # 创建邮件消息
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"{config['from_name']} <{config['username']}>"
+        message["From"] = f"{config['from_name']} <{config['from_address']}>"
         message["To"] = to_email
 
         # 添加唯一 Message-ID
