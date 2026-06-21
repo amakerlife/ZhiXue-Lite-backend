@@ -566,13 +566,17 @@ def get_user_exam_score(exam_id):
         return jsonify({"success": False, "message": "Access Denied"}), 403
 
     student_id = resolved_context.student_id
+    school_id = resolved_context.school_id
 
     # 构建成绩数据
-    stmt = select(Score).where(
-        (Score.exam_id == exam_id) &
-        (Score.student_id == student_id)
-    ).order_by(Score.sort)
-    raw_scores = db.session.scalars(stmt).all()
+    raw_scores = []
+    if school_id is not None:
+        stmt = select(Score).where(
+            (Score.exam_id == exam_id) &
+            (Score.student_id == student_id) &
+            (Score.school_id == school_id)
+        ).order_by(Score.sort)
+        raw_scores = db.session.scalars(stmt).all()
     scores = []
     for raw_score in raw_scores:
         scores.append({
@@ -599,6 +603,7 @@ def get_user_exam_score(exam_id):
         school_results = db.session.execute(stmt).all()
         stmt = (select(Score.subject_id, func.count(Score.id).label("participant_count"))).where(
             (Score.exam_id == exam_id) &
+            (Score.school_id == school_id) &
             (Score.class_name == raw_scores[0].class_name) &
             (Score.score.op("~")("^-?\\d+(\\.\\d+)?$"))
         ).group_by(Score.subject_id)
@@ -611,6 +616,10 @@ def get_user_exam_score(exam_id):
 
     is_multi_school = len(exam.schools) > 1
     # DEPRECATED: 暂时保留 schools 字段用于兼容前端。
+    has_global_permission = current_user.has_permission(
+        PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL
+    )
+    visible_school_id = school_id if has_global_permission else current_user.school_id
     schools = [
         {
             "school_id": es.school_id,
@@ -618,7 +627,7 @@ def get_user_exam_score(exam_id):
             "is_saved": es.is_saved
         }
         for es in exam.schools
-        if es.school_id == school_id
+        if has_global_permission or es.school_id == visible_school_id
     ]
 
     return jsonify({

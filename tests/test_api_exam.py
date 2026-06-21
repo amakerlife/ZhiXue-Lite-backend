@@ -1271,6 +1271,107 @@ def test_get_exam_score_school_ignores_requested_school_id(client, db, school_ad
     data = response.get_json()
     assert data["success"] is True
     assert data["student_id"] == "student_002"
+    assert len(data["schools"]) == 1
+    assert data["schools"][0]["school_id"] == school.id
+
+
+def test_get_exam_score_school_scope_does_not_leak_other_school_student_score(
+    client,
+    db,
+    school_admin,
+    exam_with_scores,
+    school
+):
+    """SCHOOL 权限查询别校学生 ID 时返回空成绩，不泄露别校分数"""
+    other_school = School(id="score_scope_other_school", name="成绩范围其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam_with_scores.id, school_id=other_school.id, is_saved=True)
+    student = Student(
+        id="student_scope_other",
+        name="别校学生",
+        label="标签 4",
+        no="004",
+        number="100004"
+    )
+    score = Score(
+        student_id=student.id,
+        exam_id=exam_with_scores.id,
+        school_id=other_school.id,
+        subject_id="subject_001",
+        subject_name="语文",
+        class_name="一班",
+        sort=1,
+        score="77",
+        standard_score="77",
+        class_rank="12",
+        school_rank="30"
+    )
+    db.session.add_all([exam_school, student, score])
+    db.session.commit()
+
+    login_user(client, username="schooladmin", password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/score?student_id={student.id}")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == student.id
+    assert data["scores"] == []
+    assert len(data["schools"]) == 1
+    assert data["schools"][0]["school_id"] == school.id
+
+
+def test_get_exam_score_global_school_filter_keeps_empty_scores_in_scope(
+    client,
+    db,
+    admin_user,
+    exam_with_scores,
+    school
+):
+    """GLOBAL 权限指定学校过滤时，不返回过滤范围外学生成绩"""
+    other_school = School(id="score_global_filter_other_school", name="全局过滤其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam_with_scores.id, school_id=other_school.id, is_saved=True)
+    student = Student(
+        id="student_global_filter_other",
+        name="全局过滤学生",
+        label="标签 5",
+        no="005",
+        number="100005"
+    )
+    score = Score(
+        student_id=student.id,
+        exam_id=exam_with_scores.id,
+        school_id=other_school.id,
+        subject_id="subject_001",
+        subject_name="语文",
+        class_name="一班",
+        sort=1,
+        score="81",
+        standard_score="81",
+        class_rank="9",
+        school_rank="21"
+    )
+    db.session.add_all([exam_school, student, score])
+    db.session.commit()
+
+    login_user(client, username="admin", password="adminpass")
+
+    response = client.get(
+        f"/exam/{exam_with_scores.id}/score?student_id={student.id}&school_id={school.id}"
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == student.id
+    assert data["scores"] == []
+    assert {item["school_id"] for item in data["schools"]} == {school.id, other_school.id}
 
 
 def test_get_exam_score_global_name_multiple_matches_include_school_and_class(
@@ -1459,6 +1560,122 @@ def test_get_exam_score_no_data(client, user_with_zhixue, db, school, zhixue_acc
     data = response.get_json()
     assert data["success"] is True
     assert len(data["scores"]) == 0  # 没有成绩
+    assert len(data["schools"]) == 1
+    assert data["schools"][0]["school_id"] == school.id
+    assert data["schools"][0]["is_saved"] is True
+
+
+def test_get_exam_score_self_unsaved_exam_returns_empty_scores_and_school_status(
+    client,
+    db,
+    user_with_zhixue,
+    school,
+    zhixue_account
+):
+    """SELF 权限访问未保存成绩详情的考试时返回空成绩和本校保存状态"""
+    exam = Exam(
+        id="exam_self_unsaved_scores",
+        name="个人未保存成绩考试",
+        created_at=int(time.time() * 1000)
+    )
+    db.session.add(exam)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam.id, school_id=school.id, is_saved=False)
+    user_exam = UserExam(zhixue_id=zhixue_account.id, exam_id=exam.id)
+    student = Student(
+        id=zhixue_account.id,
+        name="张三",
+        label="标签 1",
+        no="001",
+        number="100001"
+    )
+    db.session.add_all([exam_school, user_exam, student])
+    db.session.commit()
+
+    login_user(client)
+
+    response = client.get(f"/exam/{exam.id}/score")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["scores"] == []
+    assert len(data["schools"]) == 1
+    assert data["schools"][0]["school_id"] == school.id
+    assert data["schools"][0]["is_saved"] is False
+
+
+def test_get_exam_score_school_unsaved_exam_returns_empty_scores_and_school_status(
+    client,
+    db,
+    school_admin,
+    school
+):
+    """SCHOOL 权限访问本校未保存成绩详情的考试时返回空成绩和本校保存状态"""
+    exam = Exam(
+        id="exam_school_unsaved_scores",
+        name="学校未保存成绩考试",
+        created_at=int(time.time() * 1000)
+    )
+    db.session.add(exam)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam.id, school_id=school.id, is_saved=False)
+    db.session.add(exam_school)
+    db.session.commit()
+
+    login_user(client, username="schooladmin", password="password123")
+
+    response = client.get(f"/exam/{exam.id}/score?student_id=missing_student")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == "missing_student"
+    assert data["scores"] == []
+    assert len(data["schools"]) == 1
+    assert data["schools"][0]["school_id"] == school.id
+    assert data["schools"][0]["is_saved"] is False
+
+
+def test_get_exam_score_global_unsaved_exam_returns_all_school_statuses(
+    client,
+    db,
+    admin_user,
+    school
+):
+    """GLOBAL 权限访问未保存成绩详情的考试时返回全部参与学校保存状态"""
+    other_school = School(id="score_unsaved_global_other_school", name="全局未保存其他学校")
+    db.session.add(other_school)
+    db.session.commit()
+
+    exam = Exam(
+        id="exam_global_unsaved_scores",
+        name="全局未保存成绩考试",
+        created_at=int(time.time() * 1000)
+    )
+    db.session.add(exam)
+    db.session.commit()
+
+    exam_school = ExamSchool(exam_id=exam.id, school_id=school.id, is_saved=False)
+    other_exam_school = ExamSchool(exam_id=exam.id, school_id=other_school.id, is_saved=True)
+    db.session.add_all([exam_school, other_exam_school])
+    db.session.commit()
+
+    login_user(client, username="admin", password="adminpass")
+
+    response = client.get(f"/exam/{exam.id}/score?student_id=missing_student")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == "missing_student"
+    assert data["scores"] == []
+    schools = {item["school_id"]: item for item in data["schools"]}
+    assert set(schools) == {school.id, other_school.id}
+    assert schools[school.id]["is_saved"] is False
+    assert schools[other_school.id]["is_saved"] is True
 
 
 # /<exam_id>/fetch 测试
