@@ -57,6 +57,15 @@ class Config:
     RATELIMIT_ENABLED = os.environ.get("RATELIMIT_ENABLED", "true").lower() == "true"
     RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "")
 
+    # --- 对象存储配置 ---
+    S3_STORAGE_ENABLED = os.environ.get("S3_STORAGE_ENABLED", "false").lower() == "true"
+    S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL", "")
+    S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID", "")
+    S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY", "")
+    S3_BUCKET = os.environ.get("S3_BUCKET", "")
+    S3_REGION = os.environ.get("S3_REGION", "auto")
+    S3_CDN_BASE_URL = os.environ.get("S3_CDN_BASE_URL", "")
+
     # 定义每个配置类必需的环境变量
     REQUIRED_ENV_VARS = []
 
