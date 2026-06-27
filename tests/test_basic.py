@@ -39,6 +39,28 @@ def test_ping_endpoint(client):
     assert "timestamp" in data
 
 
+def test_ping_endpoint_database_unavailable(client):
+    """
+    测试 /ping 在数据库不可用时返回失败
+    """
+    from unittest.mock import patch
+    from sqlalchemy.exc import OperationalError
+
+    with patch(
+        "app.db.session.execute",
+        side_effect=OperationalError("SELECT 1", {}, Exception("database unavailable")),
+    ):
+        response = client.get("/ping")
+
+    assert response.status_code == 503
+
+    data = response.get_json()
+
+    assert data["success"] is False
+    assert data["message"] == "database unavailable"
+    assert "timestamp" in data
+
+
 def test_statistics_endpoint(client, db, regular_user, admin_user, test_school):
     """
     测试 /statistics 统计端点数据正确性

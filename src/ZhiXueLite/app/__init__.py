@@ -9,6 +9,7 @@ from flask_login import LoginManager, current_user, logout_user
 from flask_session import Session
 from flask_migrate import Migrate
 from sqlalchemy import distinct, func, select
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -182,6 +183,16 @@ def create_app():
     @app.route("/ping", methods=["GET"])
     def ping():
         """健康检查端点"""
+        try:
+            db.session.execute(select(1)).scalar_one()
+        except SQLAlchemyError:
+            db.session.rollback()
+            return jsonify({
+                "success": False,
+                "message": "database unavailable",
+                "timestamp": datetime.utcnow().isoformat()
+            }), 503
+
         return jsonify({
             "success": True,
             "message": "pong",
