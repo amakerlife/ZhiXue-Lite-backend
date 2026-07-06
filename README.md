@@ -8,6 +8,8 @@
     <img src="https://socialify.git.ci/amakerlife/ZhiXue-Lite-backend/image?description=1&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Light">
 </p>
 
+[Enlish Version](./README_en.md)
+
 对接智学网官方 API 的轻量 Web 应用后端。
 
 ---
