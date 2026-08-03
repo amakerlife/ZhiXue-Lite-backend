@@ -28,7 +28,7 @@ dependencies = [
     "psycopg2-binary==2.9.12",
     "python-dotenv==1.2.2",
     "gunicorn==26.0.0",
-    "cryptography==49.0.0",
+    "cryptography==50.0.0",
     "boto3>=1.43",
 ]
 
