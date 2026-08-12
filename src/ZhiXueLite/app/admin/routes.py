@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.database import db
 from app.database.models import BackgroundTask, Exam, School, TaskStatus, ZhiXueStudentAccount, User
 from app.utils.paginate import paginate_query
+from app.utils import storage as s3
 from loguru import logger
 
 admin_bp = Blueprint("admin", __name__)
@@ -220,7 +221,6 @@ def update_user(user_id):
     return jsonify({"success": True, "message": "用户信息已更新", "user": user.to_dict()}), 200
 
 
-# TODO: DELETE /admin/cache/exams; DELETE /admin/cache/exams/{exam_id} etc
 @admin_bp.route("/cache", methods=["DELETE"])
 def clear_cache():
     """清除缓存"""
@@ -237,6 +237,85 @@ def clear_cache():
 
     except Exception as e:
         return jsonify({"success": False, "message": "清除缓存失败"}), 500
+
+
+@admin_bp.route("/storage/stats", methods=["GET"])
+def storage_stats():
+    """S3 存储用量统计"""
+    if not s3.is_enabled():
+        return jsonify({"success": True, "enabled": False}), 200
+
+    answersheet = s3.stat_prefix("answersheet/")
+    scoresheet = s3.stat_prefix("scoresheet/")
+    total = {
+        "size": answersheet["size"] + scoresheet["size"],
+        "count": answersheet["count"] + scoresheet["count"],
+    }
+    return jsonify({
+        "success": True,
+        "enabled": True,
+        "stats": {
+            "answersheet": answersheet,
+            "scoresheet": scoresheet,
+            "total": total,
+        }
+    }), 200
+
+
+@admin_bp.route("/storage/objects", methods=["GET"])
+def storage_objects():
+    """列出全部 S3 对象（答题卡&成绩单）"""
+    if not s3.is_enabled():
+        return jsonify({"success": True, "enabled": False, "objects": []}), 200
+
+    objects = []
+    for prefix in ["answersheet/", "scoresheet/"]:
+        objects.extend(s3.list_objects(prefix))
+    objects.sort(key=lambda o: o["key"])
+    return jsonify({"success": True, "enabled": True, "objects": objects}), 200
+
+
+@admin_bp.route("/storage/objects", methods=["DELETE"])
+def storage_delete():
+    """
+    删除 S3 对象
+
+    请求参数：
+    - key: 删除单个对象
+    - prefix: 删除指定前缀下的所有对象
+    - all: 删除全部对象
+    """
+    if not s3.is_enabled():
+        return jsonify({"success": False, "message": "S3 存储未启用"}), 400
+
+    data = request.get_json(silent=True) or {}
+
+    # 全部
+    if data.get("all") is True:
+        deleted = 0
+        for prefix in ["answersheet/", "scoresheet/"]:
+            deleted += s3.delete_prefix(prefix)
+        return jsonify({"success": True, "message": f"已删除 {deleted} 个对象", "deleted": deleted}), 200
+
+    # 单个
+    key = data.get("key")
+    if key:
+        if not isinstance(key, str) or not key.startswith(("answersheet/", "scoresheet/")):
+            return jsonify({"success": False, "message": "不允许删除该对象"}), 400
+        deleted = s3.delete_keys([key])
+        return jsonify({"success": True, "message": f"已删除 {deleted} 个对象", "deleted": deleted}), 200
+
+    # 前缀
+    prefix = data.get("prefix")
+    if prefix:
+        if not isinstance(prefix, str) or not prefix.startswith(("answersheet/", "scoresheet/")):
+            return jsonify({"success": False, "message": "不允许删除该前缀"}), 400
+        if ".." in prefix:
+            return jsonify({"success": False, "message": "无效的前缀"}), 400
+        deleted = s3.delete_prefix(prefix)
+        return jsonify({"success": True, "message": f"已删除 {deleted} 个对象", "deleted": deleted}), 200
+
+    return jsonify({"success": False, "message": "参数缺失"}), 400
 
 
 @admin_bp.route("/su/<string:username>", methods=["POST"])

@@ -8,7 +8,6 @@ from loguru import logger
 
 from app.config import config
 
-# 开启 S3 存储时必须提供的配置项
 _REQUIRED_KEYS = (
     "S3_ENDPOINT_URL",
     "S3_ACCESS_KEY_ID",
@@ -44,6 +43,11 @@ def get_client():
             ),
         )
     return _client
+
+
+def is_enabled() -> bool:
+    """S3 是否启用"""
+    return config.S3_STORAGE_ENABLED
 
 
 def upload_bytes(key: str, data: bytes, content_type: Optional[str] = None) -> None:
@@ -104,3 +108,55 @@ def _swap_host(url: str) -> str:
     src = urlsplit(url)
     cdn = urlsplit(config.S3_CDN_BASE_URL)
     return urlunsplit((cdn.scheme, cdn.netloc, src.path, src.query, src.fragment))
+
+
+def list_objects(prefix: str) -> list[dict]:
+    """列出 prefix 下全部对象"""
+    client = get_client()
+    paginator = client.get_paginator("list_objects_v2")
+    res: list[dict] = []
+    for page in paginator.paginate(Bucket=config.S3_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            res.append(
+                {
+                    "key": obj["Key"],
+                    "size": obj["Size"],
+                    "last_modified": obj["LastModified"].isoformat(),
+                }
+            )
+    return res
+
+
+def stat_prefix(prefix: str) -> dict:
+    """遍历 prefix 累加大小与数量"""
+    client = get_client()
+    paginator = client.get_paginator("list_objects_v2")
+    size = 0
+    count = 0
+    for page in paginator.paginate(Bucket=config.S3_BUCKET, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            size += obj["Size"]  # bytes
+            count += 1
+    return {"size": size, "count": count}
+
+
+def delete_keys(keys: list[str]) -> int:
+    """按 key 批量删除，每批最多 1000，返回成功删除数量"""
+    if not keys:
+        return 0
+    client = get_client()
+    deleted = 0
+    for i in range(0, len(keys), 1000):
+        batch = [{"Key": k} for k in keys[i: i + 1000]]
+        resp = client.delete_objects(Bucket=config.S3_BUCKET, Delete={"Objects": batch})
+        deleted += len(resp.get("Deleted", []))
+        errors = resp.get("Errors", [])
+        if errors:
+            logger.warning(f"Failed to delete {len(errors)} objects in batch: {errors[:3]}")
+    return deleted
+
+
+def delete_prefix(prefix: str) -> int:
+    """删除 prefix 下全部对象，返回删除数量"""
+    keys = [o["key"] for o in list_objects(prefix)]
+    return delete_keys(keys)

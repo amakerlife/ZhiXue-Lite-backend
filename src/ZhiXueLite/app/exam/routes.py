@@ -11,7 +11,6 @@ from loguru import logger
 from openpyxl import Workbook
 from sqlalchemy import func, select
 from app.database import db
-from app.config import config
 from app.database.models import (
     Exam,
     ExamSchool,
@@ -27,7 +26,7 @@ from app.database.models import (
 from app.models.exceptions import FailedToGetTeacherAccountError
 from app.models.teacher import login_teacher_session
 from app.task.repository import create_task
-from app.utils import storage
+from app.utils import storage as s3
 from app.utils.paginate import paginate_query
 from app import limiter
 from flask_limiter.util import get_remote_address
@@ -832,12 +831,12 @@ def generate_scoresheet(exam_id):
     download_name = f"{exam.name}_成绩单.xlsx"
     xlsx_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
-    if config.S3_STORAGE_ENABLED:
+    if s3.is_enabled():
         buffer = BytesIO()
         wb.save(buffer)
         key = f"scoresheet/{exam_id}/{scope}_{school_id or 'all'}_{int(time.time())}.xlsx"
-        storage.upload_bytes(key, buffer.getvalue(), content_type=xlsx_mime)
-        url = storage.presign_get(key, download_filename=download_name, content_type=xlsx_mime)
+        s3.upload_bytes(key, buffer.getvalue(), content_type=xlsx_mime)
+        url = s3.presign_get(key, download_filename=download_name, content_type=xlsx_mime)
         return jsonify({"success": True, "url": url}), 200
 
     # 本地缓存
@@ -888,9 +887,9 @@ def generate_answersheet(exam_id, subject_id):
     student_id = resolved_context.student_id
     school_id = resolved_context.school_id
 
-    if config.S3_STORAGE_ENABLED:
+    if s3.is_enabled():
         key = f"answersheet/{exam_id}/{subject_id}/{student_id}.png"
-        if not storage.exists(key):
+        if not s3.exists(key):
             try:
                 teacher_account = get_teacher(exam_id, school_id=school_id)
                 teacher = login_teacher_session(teacher_account.cookie)
@@ -900,11 +899,11 @@ def generate_answersheet(exam_id, subject_id):
                 return jsonify({"success": False, "message": "Unknown error occurred"}), 500
             buffer = BytesIO()
             image.save(buffer, format="PNG")
-            storage.upload_bytes(key, buffer.getvalue(), content_type="image/png")
+            s3.upload_bytes(key, buffer.getvalue(), content_type="image/png")
 
-        want_download = request.args.get("download", "").lower() in ("1", "true", "yes")
+        want_download = request.args.get("download", "").lower() in ("1", "true")
         friendly_name = request.args.get("name") or "答题卡"
-        url = storage.presign_get(
+        url = s3.presign_get(
             key,
             download_filename=f"{friendly_name}.png" if want_download else None,
             content_type="image/png",
