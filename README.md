@@ -27,6 +27,8 @@ flask run
 
 ## Todo List
 
+- [ ] 考虑将 `VIEW_EXAM_DATA` 权限与 `EXPORT_SCORE_SHEET` 权限合并
+- [ ] 支持在网页中查看成绩单
 - [ ] 任务失败信息中存储详细信息，但不向非管理员展示
 - [ ] 以学生 id 作为唯一依据，可新建 login_name -> student_id 的 mapping，允许用户使用不同用户名登录
 - [ ] 随机抽取考试中的答题卡

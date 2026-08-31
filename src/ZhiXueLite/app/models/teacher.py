@@ -303,9 +303,14 @@ class ExtendedTeacherAccount(TeacherAccount):
             )
             data = r.json()["result"]
             for student in data["studentRank"]:
+                # 阅卷中的考试不下发这三个顶层字段
+                all_score = student.get("allScore", "-")
+                class_rank = student.get("classRank", "-")
+                school_rank = student.get("schoolRank", "-")
+
                 student_info = StudentScoreInfo(student["userName"], student["userId"], student["studentNo"],
                                                 student["userNum"], student["studentLabel"], student["className"],
-                                                student["allScore"], student["classRank"], student["schoolRank"])
+                                                all_score, class_rank, school_rank)
 
                 # 先添加各科成绩
                 for score_info in student["scoreInfos"]:
@@ -324,12 +329,12 @@ class ExtendedTeacherAccount(TeacherAccount):
 
                 # 处理总分
                 is_total_calculated = False
-                total_score_value = student["allScore"]
-                total_class_rank = student["classRank"]
-                total_school_rank = student["schoolRank"]
+                total_score_value = all_score
+                total_class_rank = class_rank
+                total_school_rank = school_rank
 
                 # 检查 allScore 是否为无效值
-                if force_calculate or student["allScore"] in ["-", "", None]:
+                if force_calculate or all_score in ["-", "", None]:
                     # 计算总分
                     calculated_score = calculate_total_score(student_info.scores)
                     total_score_value = calculated_score
@@ -344,7 +349,7 @@ class ExtendedTeacherAccount(TeacherAccount):
                     is_calculated=is_total_calculated
                 )
 
-                if "-" in student["schoolRank"] or "-" in student["classRank"] or is_total_calculated:
+                if "-" in school_rank or "-" in class_rank or is_total_calculated:
                     need_calc_rank = True
 
                 students_list.append(student_info)
