@@ -35,7 +35,7 @@ class PermissionType(Enum):
     REFETCH_EXAM_DATA = 1   # 重新拉取考试详情数据
     VIEW_EXAM_LIST = 2      # 查看考试列表
     VIEW_EXAM_DATA = 3      # 查看考试详情
-    EXPORT_SCORE_SHEET = 4  # 导出成绩单（无个人权限）
+    EXPORT_SCORE_SHEET = 4  # 导出成绩单（无个人权限）[Deprecated, migrate to VIEW_EXAM_DATA.]
 
 
 class School(BaseDBClass):

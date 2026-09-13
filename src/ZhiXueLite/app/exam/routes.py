@@ -11,6 +11,7 @@ from loguru import logger
 from openpyxl import Workbook
 from sqlalchemy import func, select
 from app.database import db
+from app.exam import scoresheet
 from app.database.models import (
     Exam,
     ExamSchool,
@@ -644,9 +645,69 @@ def get_user_exam_score(exam_id):
     }), 200
 
 
+@exam_bp.route("/<string:exam_id>/all-scores", methods=["GET"])
+@login_required
+@permission_required(PermissionType.VIEW_EXAM_DATA, "school")
+def get_all_scores(exam_id):
+    """
+    获取指定考试的所有成绩。
+    """
+    scope = request.args.get("scope", "school", type=str)  # school or all
+    school_id = request.args.get("school_id", "", type=str)
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page = min(max(request.args.get("per_page", 50, type=int), 1), 100)
+    class_name = _normalize_optional_arg(request.args.get("class_name", type=str))
+    query = _normalize_optional_arg(request.args.get("query", type=str))
+    sort_by = _normalize_optional_arg(request.args.get("sort_by", type=str))
+    order = request.args.get("order", "asc", type=str)
+
+    if scope not in ["school", "all"] or order not in ["asc", "desc"]:
+        return jsonify({"success": False, "message": "参数不合法"}), 400
+
+    exam = db.session.scalar(select(Exam).where(Exam.id == exam_id))
+    if not exam:
+        return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
+
+    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
+        if scope == "school" and school_id == "":
+            if current_user.school_id is None:
+                return jsonify({"success": False, "message": "请指定学校"}), 400
+            school_id = str(current_user.school_id)
+    else:
+        if scope == "all":
+            return jsonify({"success": False, "message": "无权访问该考试"}), 403
+        school_id = str(current_user.school_id)
+
+    if scope == "school":
+        if school_id not in exam.get_school_ids() or not exam.is_saved_for_school(school_id):
+            return jsonify({"success": False, "message": "该学校未参与此次考试或考试数据尚未保存"}), 400
+    else:
+        school_id = None
+
+    try:
+        subjects, classes, students, pagination = scoresheet.build_page(
+            exam_id, scope, school_id,
+            per_page=per_page, page=page,
+            class_name=class_name, query=query, sort_by=sort_by, order=order,
+        )
+    except scoresheet.InvalidSortError:
+        return jsonify({"success": False, "message": "参数不合法"}), 400
+
+    return jsonify({
+        "success": True,
+        "exam": {"id": exam.id, "name": exam.name, "is_multi_school": len(exam.schools) > 1},
+        "scope": scope,
+        "school_id": school_id,
+        "subjects": [subject.to_dict() for subject in subjects],
+        "classes": classes,
+        "students": [student.to_dict() for student in students],
+        "pagination": pagination,
+    }), 200
+
+
 @exam_bp.route("/<string:exam_id>/scoresheet", methods=["GET"])
 @login_required
-@permission_required(PermissionType.EXPORT_SCORE_SHEET, "school")
+@permission_required(PermissionType.VIEW_EXAM_DATA, "school")
 def generate_scoresheet(exam_id):
     """
     生成指定考试的成绩单 Excel 文件
@@ -657,48 +718,30 @@ def generate_scoresheet(exam_id):
     if scope not in ["school", "all"]:
         return jsonify({"success": False, "message": "参数不合法"}), 400
 
-    stmt = select(Exam).where(Exam.id == exam_id)
-    exam = db.session.scalar(stmt)
+    exam = db.session.scalar(select(Exam).where(Exam.id == exam_id))
     if not exam:
         return jsonify({"success": False, "message": "考试不存在或未被保存"}), 404
 
-    if current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.GLOBAL):
+    if current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.GLOBAL):
         if scope == "school" and school_id == "":
             if current_user.school_id is None:
-                return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
+                return jsonify({"success": False, "message": "请指定学校"}), 400
             school_id = str(current_user.school_id)
-    elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SCHOOL):
-        if scope == "all":
-            return jsonify({"success": False, "message": "无权访问该考试"}), 403
-        if current_user.school_id is None:
-            return jsonify({"success": False, "message": "用户未绑定学校，无法导出成绩单"}), 400
-        school_id = str(current_user.school_id)
-    elif current_user.has_permission(PermissionType.EXPORT_SCORE_SHEET, PermissionLevel.SELF):
-        if scope == "all":
-            return jsonify({"success": False, "message": "无权访问该考试"}), 403
-        if current_user.zhixue is None:
-            return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
-        stmt = select(UserExam).where(
-            (UserExam.exam_id == exam_id) &
-            (UserExam.zhixue_id == current_user.zhixue_account_id)
-        )
-        if not db.session.scalar(stmt):
-            return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
     else:
-        return jsonify({"success": False, "message": "Access Denied"}), 403
+        if scope == "all":
+            return jsonify({"success": False, "message": "无权访问该考试"}), 403
+        school_id = str(current_user.school_id)
 
-    if scope == "school" and school_id not in exam.get_school_ids():
-        return jsonify({"success": False, "message": "该学校未参与此次考试"}), 400
-
-    if scope == "school" and not exam.is_saved_for_school(school_id):
-        return jsonify({"success": False, "message": "考试数据尚未保存，请先拉取考试详情"}), 400
-
-    stmt = select(Score).where(Score.exam_id == exam_id)
     if scope == "school":
-        stmt = stmt.where(Score.school_id == school_id)
-    scores_data = db.session.scalars(stmt).all()
+        if school_id not in exam.get_school_ids() or not exam.is_saved_for_school(school_id):
+            return jsonify({"success": False, "message": "该学校未参与此次考试或考试数据尚未保存"}), 400
+    else:
+        school_id = None
 
-    if not scores_data:
+    subjects, _classes, students, _pagination = scoresheet.build_page(
+        exam_id, scope, school_id, per_page=0
+    )
+    if not students:
         return jsonify({"success": False, "message": "该考试暂无成绩数据"}), 404
 
     wb = Workbook()
@@ -706,72 +749,6 @@ def generate_scoresheet(exam_id):
     if ws is None:
         raise RuntimeError("Failed to create worksheet")
     ws.title = "成绩单"
-
-    student_dict = {}
-    subject_info = {}
-
-    for score in scores_data:
-        student_id = score.student_id
-        if student_id not in student_dict:
-            student_dict[student_id] = {
-                "name": score.student.name,
-                "school": score.school.name if score.school else None,
-                "label": score.student.label,
-                "class_name": score.class_name,
-                "subjects": {}
-            }
-
-        subject_name = score.subject_name
-        if subject_name not in subject_info:
-            subject_info[subject_name] = (score.sort, score.is_assign)
-
-        student_dict[student_id]["subjects"][subject_name] = {
-            "score": score.score,
-            "standard_score": score.standard_score,
-            "origin_score": score.origin_score,
-            "class_rank": score.class_rank,
-            "school_rank": score.school_rank
-        }
-
-    subject_names = sorted(subject_info.keys(), key=lambda x: subject_info[x][0])
-
-    def parse_rank_value(rank_value):
-        """
-        解析排名值，提取其中的数字部分
-        """
-        if rank_value is None or rank_value == "":
-            return float('inf')
-
-        if isinstance(rank_value, (int, float)):
-            return float(rank_value)
-
-        # 如果是字符串，尝试提取数字
-        if isinstance(rank_value, str):
-            match = re.match(r'^(\d+)', rank_value.strip())
-            if match:
-                return float(match.group(1))
-
-        return float('inf')
-
-    # 排序学生数据：按照每个科目的年级排名、班级排名升序，最后按姓名升序
-    def get_sort_key(item):
-        student_id, student_info = item
-        sort_key = []
-
-        for subject_name in subject_names:
-            subject_data = student_info["subjects"].get(subject_name, {})
-            school_rank = subject_data.get("school_rank")
-            class_rank = subject_data.get("class_rank")
-
-            # 解析排名值为数字
-            school_rank_num = parse_rank_value(school_rank)
-            class_rank_num = parse_rank_value(class_rank)
-
-            # 升序排序
-            sort_key.extend([school_rank_num, class_rank_num])
-
-        sort_key.append(student_info["name"])
-        return sort_key
 
     # 将纯数字字符串转换为数字类型
     def try_numeric(value):
@@ -782,50 +759,26 @@ def generate_scoresheet(exam_id):
             return int(f) if f == int(f) else f
         return value
 
-    student_list = sorted(student_dict.items(), key=get_sort_key)
-
     titles = ["姓名", "学校", "标签", "班级"]
-    for subject_name in subject_names:
-        if subject_info[subject_name][1]:  # is_assign
-            titles.extend([
-                f"{subject_name}原始分",
-                f"{subject_name}赋分",
-            ])
+    for subject in subjects:
+        if subject.is_assign:
+            titles.extend([f"{subject.name}原始分", f"{subject.name}赋分"])
         else:
-            titles.extend([f"{subject_name}成绩"])
-        titles.extend([
-            f"{subject_name}班次",
-            f"{subject_name}校次"
-        ])
+            titles.append(f"{subject.name}成绩")
+        titles.extend([f"{subject.name}班次", f"{subject.name}校次"])
     ws.append(titles)
 
-    for student_id, student_info in student_list:
-        row = [
-            student_info["name"],
-            student_info["school"],
-            student_info["label"],
-            student_info["class_name"]
-        ]
-
-        for subject_name in subject_names:
-            subject_data = student_info["subjects"].get(subject_name, {})
-            score = try_numeric(subject_data.get("score"))
-            class_rank = try_numeric(subject_data.get("class_rank"))
-            school_rank = try_numeric(subject_data.get("school_rank"))
-
-            if subject_info[subject_name][1]:  # is_assign
-                origin_score = try_numeric(subject_data.get("origin_score"))
-                row.extend([
-                    origin_score if origin_score is not None else None,
-                    score if score is not None else None
-                ])
-            else:
-                row.append(score if score is not None else None)
+    for student in students:
+        row = [student.name, student.school, student.label, student.class_name]
+        for subject in subjects:
+            cell = student.subjects.get(subject.name, {})
+            if subject.is_assign:
+                row.append(try_numeric(cell.get("origin_score")))
             row.extend([
-                class_rank if class_rank is not None else None,
-                school_rank if school_rank is not None else None
+                try_numeric(cell.get("score")),
+                try_numeric(cell.get("class_rank")),
+                try_numeric(cell.get("school_rank")),
             ])
-
         ws.append(row)
 
     download_name = f"{exam.name}_成绩单.xlsx"

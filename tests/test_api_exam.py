@@ -1803,7 +1803,7 @@ def test_fetch_exam_details_requires_permission(client, db):
 def test_export_scoresheet_success(client, user_with_zhixue, exam_with_scores, school):
     """测试成功导出成绩单（Excel 文件）"""
     # 修改用户权限以允许导出
-    user_with_zhixue.permissions = "10112"  # EXPORT_SCORE_SHEET=SCHOOL
+    user_with_zhixue.permissions = "10120"  # VIEW_EXAM_DATA=SCHOOL
     from app.database import db as _db
     _db.session.commit()
 
@@ -1819,7 +1819,7 @@ def test_export_scoresheet_success(client, user_with_zhixue, exam_with_scores, s
 
 def test_export_scoresheet_assigned_subject_columns(client, user_with_zhixue, exam_with_scores, school):
     """测试赋分科目导出列：应包含原始分/赋分，非赋分科目保留成绩列"""
-    user_with_zhixue.permissions = "10112"
+    user_with_zhixue.permissions = "10120"  # VIEW_EXAM_DATA=SCHOOL
     from app.database import db as _db
     _db.session.commit()
 
@@ -1838,9 +1838,29 @@ def test_export_scoresheet_assigned_subject_columns(client, user_with_zhixue, ex
     assert "语文成绩" not in titles
     assert "数学成绩" in titles
 
+    # 列顺序、数值转换与原实现一致；行顺序为语文校次升序，缺考科目留空
+    rows = [[cell.value for cell in row] for row in ws.iter_rows(min_row=2)]
+    assert rows == [
+        ["张三", "测试中学", "标签1", "一班", 89, 95, 1, 1, 90, 2, 3],
+        ["李四", "测试中学", "标签2", "一班", 84, 88, 5, 10, None, None, None],
+    ]
+
+
+def test_export_scoresheet_only_export_permission_denied(client, user_with_zhixue, exam_with_scores, school):
+    """仅有已废弃的 EXPORT_SCORE_SHEET=SCHOOL 而 VIEW_EXAM_DATA 为 SELF 时无法导出"""
+    user_with_zhixue.permissions = "10112"
+    from app.database import db as _db
+    _db.session.commit()
+
+    login_user(client)
+
+    response = client.get(f"/exam/{exam_with_scores.id}/scoresheet?school_id={school.id}")
+
+    assert response.status_code == 403
+
 
 def test_export_scoresheet_requires_permission(client, user_with_zhixue, exam_with_scores, school):
-    """测试没有 EXPORT_SCORE_SHEET 权限无法导出"""
+    """测试没有校内 VIEW_EXAM_DATA 权限无法导出"""
     # user_with_zhixue 默认权限不包括导出
     login_user(client)
 
@@ -1875,7 +1895,7 @@ def test_export_scoresheet_no_data(client, user_with_zhixue, db, school, zhixue_
     db.session.commit()
 
     # 修改权限以允许导出
-    user_with_zhixue.permissions = "10112"
+    user_with_zhixue.permissions = "10120"  # VIEW_EXAM_DATA=SCHOOL
     from app.database import db as _db
     _db.session.commit()
 
@@ -2163,7 +2183,7 @@ def test_export_scoresheet_school_permission_scope_all_denied(client, db, exam_w
         username="selfuser",
         email="self@example.com",
         role="user",
-        permissions="10112",  # EXPORT_SCORE_SHEET=SCHOOL
+        permissions="10120",  # VIEW_EXAM_DATA=SCHOOL
         created_at=datetime.utcnow(),
         email_verified=True,
         zhixue_account_id="zx_self",
@@ -2746,3 +2766,150 @@ def test_exam_list_schools_filter_consistency_with_exam_detail(client, db, multi
     assert list_exam["schools"][0]["school_id"] == detail_data["exam"]["schools"][0]["school_id"]
     assert list_exam["schools"][0]["school_name"] == detail_data["exam"]["schools"][0]["school_name"]
     assert list_exam["schools"][0]["is_saved"] == detail_data["exam"]["schools"][0]["is_saved"]
+
+
+# /<exam_id>/all-scores 测试 (网页成绩单)
+
+
+def test_all_scores_requires_login(client, exam_with_scores):
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores")
+    assert response.status_code == 401
+
+
+def test_all_scores_self_permission_denied(client, user_with_zhixue, exam_with_scores):
+    """VIEW_EXAM_DATA 仅 SELF 级时无法查看成绩单"""
+    login_user(client)
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores")
+    assert response.status_code == 403
+
+
+def test_all_scores_exam_not_found(client, admin_user, school):
+    login_user(client, username="admin", password="adminpass")
+    response = client.get(f"/exam/non_existent/all-scores?school_id={school.id}")
+    assert response.status_code == 404
+
+
+def test_all_scores_school_permission_scope_all_denied(client, db, school_admin, exam_with_scores):
+    login_user(client, username=school_admin.username, password="password123")
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?scope=all")
+    assert response.status_code == 403
+
+
+def test_all_scores_invalid_params(client, admin_user, exam_with_scores, school):
+    login_user(client, username="admin", password="adminpass")
+    base = f"/exam/{exam_with_scores.id}/all-scores?school_id={school.id}"
+    assert client.get(base + "&scope=bad").status_code == 400
+    assert client.get(base + "&order=bad").status_code == 400
+    assert client.get(base + "&sort_by=bad").status_code == 400
+    assert client.get(base + "&sort_by=subject:物理:score").status_code == 400
+
+
+def test_all_scores_school_success(client, db, school_admin, exam_with_scores, school):
+    """校内用户查看成绩单：表头、学生、单元格与分页"""
+    school_admin.manual_school_id = school.id
+    db.session.commit()
+    login_user(client, username=school_admin.username, password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores")
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["scope"] == "school"
+    assert data["school_id"] == school.id
+    assert data["exam"]["id"] == exam_with_scores.id
+    assert [s["name"] for s in data["subjects"]] == ["语文", "数学"]
+    assert data["subjects"][0]["is_assign"] is True
+    assert data["subjects"][1]["is_assign"] is False
+    assert data["classes"] == ["一班"]
+    assert data["pagination"]["total"] == 2
+    assert data["pagination"]["pages"] == 1
+    # Excel 顺序：张三语文校次 1，李四语文校次 10
+    assert [s["name"] for s in data["students"]] == ["张三", "李四"]
+    zhang = data["students"][0]
+    assert zhang["class_name"] == "一班"
+    assert zhang["school"] == school.name
+    assert zhang["subjects"]["语文"] == {
+        "score": "95", "origin_score": "89", "class_rank": "1", "school_rank": "1"
+    }
+    assert "数学" not in data["students"][1]["subjects"]
+
+
+def test_all_scores_pagination(client, db, school_admin, exam_with_scores, school):
+    school_admin.manual_school_id = school.id
+    db.session.commit()
+    login_user(client, username=school_admin.username, password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?per_page=1")
+    data = response.get_json()
+    assert data["pagination"]["pages"] == 2
+    assert data["pagination"]["has_next"] is True
+    assert len(data["students"]) == 1
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?per_page=1&page=2")
+    data = response.get_json()
+    assert data["pagination"]["has_prev"] is True
+    assert [s["name"] for s in data["students"]] == ["李四"]
+
+
+def test_all_scores_filter_and_search(client, db, school_admin, exam_with_scores, school):
+    school_admin.manual_school_id = school.id
+    db.session.commit()
+    login_user(client, username=school_admin.username, password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?query=李")
+    data = response.get_json()
+    assert [s["name"] for s in data["students"]] == ["李四"]
+    assert data["pagination"]["total"] == 1
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?class_name=二班")
+    data = response.get_json()
+    assert data["students"] == []
+    assert data["pagination"]["total"] == 0
+    # 表头与班级列表不受筛选影响
+    assert len(data["subjects"]) == 2
+
+
+def test_all_scores_sort_by_subject(client, db, school_admin, exam_with_scores, school):
+    school_admin.manual_school_id = school.id
+    db.session.commit()
+    login_user(client, username=school_admin.username, password="password123")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?sort_by=subject:语文:score&order=desc")
+    assert [s["name"] for s in response.get_json()["students"]] == ["张三", "李四"]
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?sort_by=subject:语文:score&order=asc")
+    assert [s["name"] for s in response.get_json()["students"]] == ["李四", "张三"]
+
+    # 未参加数学的李四排在末尾，无论升降序
+    for order in ("asc", "desc"):
+        response = client.get(f"/exam/{exam_with_scores.id}/all-scores?sort_by=subject:数学:score&order={order}")
+        assert [s["name"] for s in response.get_json()["students"]] == ["张三", "李四"]
+
+
+def test_all_scores_global_scope_all(client, db, admin_user, exam_with_scores, school):
+    """全局用户 scope=all 返回所有学校的学生"""
+    other_school = School(id="school_other", name="另一所学校")
+    other_student = Student(id="student_other", name="王五", label="标签3", no="003", number="100003")
+    db.session.add_all([other_school, other_student])
+    db.session.commit()
+    db.session.add(ExamSchool(exam_id=exam_with_scores.id, school_id=other_school.id, is_saved=True))
+    db.session.add(Score(
+        student_id=other_student.id, exam_id=exam_with_scores.id, school_id=other_school.id,
+        subject_id="subject_001", subject_name="语文", class_name="三班", sort=1,
+        score="70", is_assign=True, origin_score="60", class_rank="1", school_rank="1"
+    ))
+    db.session.commit()
+
+    login_user(client, username="admin", password="adminpass")
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?scope=all")
+    data = response.get_json()
+    assert response.status_code == 200
+    assert data["scope"] == "all"
+    assert data["school_id"] is None
+    assert data["pagination"]["total"] == 3
+    assert data["classes"] == ["一班", "三班"]
+    assert {s["school"] for s in data["students"]} == {school.name, "另一所学校"}
+
+    response = client.get(f"/exam/{exam_with_scores.id}/all-scores?school_id={school.id}")
+    assert response.get_json()["pagination"]["total"] == 2
