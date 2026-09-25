@@ -2913,3 +2913,183 @@ def test_all_scores_global_scope_all(client, db, admin_user, exam_with_scores, s
 
     response = client.get(f"/exam/{exam_with_scores.id}/all-scores?school_id={school.id}")
     assert response.get_json()["pagination"]["total"] == 2
+
+
+# 管理员公开考试给有成绩学生
+
+@pytest.fixture
+def public_exam(db, school, zhixue_account):
+    """本校已公开、该生有成绩、但没有 UserExam 记录的考试"""
+    exam = Exam(id="exam_public", name="公开的考试", created_at=int(time.time() * 1000) + 100000)
+    student = Student(id=zhixue_account.id, name="张三", label="标签1", no="001", number="100001")
+    db.session.add_all([exam, student])
+    db.session.commit()
+
+    db.session.add(ExamSchool(exam_id=exam.id, school_id=school.id, is_saved=True, is_public=True))
+    db.session.add(Score(
+        student_id=student.id, exam_id=exam.id, school_id=school.id,
+        subject_id="subject_001", subject_name="语文", class_name="一班", sort=1,
+        score="95", standard_score="95", class_rank="1", school_rank="1"
+    ))
+    db.session.commit()
+    return exam
+
+
+@pytest.fixture
+def public_exam_without_score(db, school):
+    """本校已公开、但该生没有成绩的考试"""
+    exam = Exam(id="exam_public_noscore", name="公开但无成绩的考试", created_at=int(time.time() * 1000) + 200000)
+    db.session.add(exam)
+    db.session.commit()
+    db.session.add(ExamSchool(exam_id=exam.id, school_id=school.id, is_saved=True, is_public=True))
+    db.session.commit()
+    return exam
+
+
+@pytest.fixture
+def other_school_public_exam(db, zhixue_account):
+    """其他学校公开、该生在其他学校有成绩的考试，学生所属学校未参与"""
+    other_school = School(id="school_other", name="另一所学校")
+    exam = Exam(id="exam_other_public", name="他校公开的考试", created_at=int(time.time() * 1000) + 300000)
+    db.session.add_all([other_school, exam])
+    db.session.commit()
+
+    if db.session.get(Student, zhixue_account.id) is None:
+        db.session.add(Student(id=zhixue_account.id, name="张三", label="标签1", no="001", number="100001"))
+        db.session.commit()
+
+    db.session.add(ExamSchool(exam_id=exam.id, school_id=other_school.id, is_saved=True, is_public=True))
+    db.session.add(Score(
+        student_id=zhixue_account.id, exam_id=exam.id, school_id=other_school.id,
+        subject_id="subject_001", subject_name="语文", class_name="一班", sort=1,
+        score="80", standard_score="80", class_rank="1", school_rank="1"
+    ))
+    db.session.commit()
+    return exam
+
+
+def test_exam_list_self_includes_public_exam_with_score(
+    client, user_with_zhixue, sample_exams, public_exam, public_exam_without_score, other_school_public_exam
+):
+    """self 列表包含 UserExam 考试和本校公开且有成绩的考试，不含无成绩或他校公开的考试"""
+    login_user(client)
+
+    response = client.get("/exam/list?scope=self&per_page=20")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    exam_ids = [exam["id"] for exam in data["exams"]]
+    assert public_exam.id in exam_ids
+    assert public_exam_without_score.id not in exam_ids
+    assert other_school_public_exam.id not in exam_ids
+    # sample_exams 中前 5 个通过 UserExam 关联，仍然可见
+    assert len(exam_ids) == 6
+    assert len(exam_ids) == len(set(exam_ids))
+
+    public_item = next(exam for exam in data["exams"] if exam["id"] == public_exam.id)
+    assert public_item["schools"] == [{
+        "school_id": "school_001",
+        "school_name": "测试中学",
+        "is_saved": True,
+        "is_public": True
+    }]
+
+
+def test_exam_list_self_public_exam_hidden_after_unpublish(client, db, user_with_zhixue, public_exam, school):
+    """取消公开后，没有 UserExam 记录的学生不再看到该考试"""
+    public_exam.get_exam_school(school.id).is_public = False
+    db.session.commit()
+
+    login_user(client)
+
+    response = client.get("/exam/list?scope=self")
+
+    assert response.status_code == 200
+    assert response.get_json()["exams"] == []
+
+
+def test_get_exam_info_public_exam(client, user_with_zhixue, public_exam):
+    """SELF 用户可查看本校公开且有成绩的考试信息"""
+    login_user(client)
+
+    response = client.get(f"/exam/{public_exam.id}")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["exam"]["id"] == public_exam.id
+    assert data["exam"]["schools"][0]["is_public"] is True
+
+
+def test_get_exam_info_public_exam_without_score_denied(client, user_with_zhixue, public_exam_without_score):
+    """考试已公开但该生无成绩时仍不可访问"""
+    login_user(client)
+
+    response = client.get(f"/exam/{public_exam_without_score.id}")
+
+    assert response.status_code == 403
+    assert response.get_json()["success"] is False
+
+
+def test_get_exam_info_other_school_public_exam_denied(client, user_with_zhixue, other_school_public_exam):
+    """他校公开的考试对本校学生不可见"""
+    login_user(client)
+
+    response = client.get(f"/exam/{other_school_public_exam.id}")
+
+    assert response.status_code == 403
+    assert response.get_json()["success"] is False
+
+
+def test_get_exam_score_public_exam(client, user_with_zhixue, public_exam):
+    """SELF 用户可查看本校公开考试中自己的成绩"""
+    login_user(client)
+
+    response = client.get(f"/exam/{public_exam.id}/score")
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["student_id"] == user_with_zhixue.zhixue_account_id
+    assert len(data["scores"]) == 1
+    assert data["scores"][0]["score"] == "95"
+    assert data["schools"][0]["is_public"] is True
+
+
+def test_get_exam_score_public_exam_without_score_denied(client, user_with_zhixue, public_exam_without_score):
+    """考试已公开但该生无成绩时成绩接口返回 403"""
+    login_user(client)
+
+    response = client.get(f"/exam/{public_exam_without_score.id}/score")
+
+    assert response.status_code == 403
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_details_public_exam(mock_create_task, client, user_with_zhixue, public_exam):
+    """SELF 用户可对本校公开且有成绩的考试发起拉取任务"""
+    mock_task = Mock()
+    mock_task.uuid = "task-public-exam"
+    mock_create_task.return_value = mock_task
+
+    login_user(client)
+
+    response = client.post(f"/exam/{public_exam.id}/fetch", json={})
+
+    assert response.status_code == 202
+    assert response.get_json()["task_id"] == "task-public-exam"
+    call_kwargs = mock_create_task.call_args[1]
+    assert call_kwargs["parameters"]["exam_id"] == public_exam.id
+    assert call_kwargs["parameters"]["school_id"] == "school_001"
+
+
+@patch("app.exam.routes.create_task")
+def test_fetch_exam_details_public_exam_without_score_denied(
+    mock_create_task, client, user_with_zhixue, public_exam_without_score
+):
+    """考试已公开但该生无成绩时不可发起拉取任务"""
+    login_user(client)
+
+    response = client.post(f"/exam/{public_exam_without_score.id}/fetch", json={})
+
+    assert response.status_code == 403
+    mock_create_task.assert_not_called()

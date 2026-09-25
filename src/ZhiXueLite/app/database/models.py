@@ -119,7 +119,7 @@ class Student(BaseDBClass):
 class ExamSchool(BaseDBClass):
     """考试-学校关联表，支持联考场景
 
-    一场考试可以关联多个学校（联考），每个学校独立维护数据保存状态。
+    一场考试可以关联多个学校（联考），每个学校独立维护数据保存状态和公开状态。
     """
     __tablename__ = "exam_schools"
 
@@ -127,6 +127,7 @@ class ExamSchool(BaseDBClass):
     exam_id: Mapped[str] = mapped_column(String(50), ForeignKey("exams.id"), nullable=False)
     school_id: Mapped[str] = mapped_column(String(50), ForeignKey("schools.id"), nullable=False)
     is_saved: Mapped[bool] = mapped_column(Boolean, default=False)  # 每个学校单独跟踪数据保存状态
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False)
 
     exam: Mapped["Exam"] = relationship("Exam", back_populates="schools")
     school: Mapped["School"] = relationship("School")
@@ -135,6 +136,14 @@ class ExamSchool(BaseDBClass):
         UniqueConstraint("exam_id", "school_id"),
         Index("ix_exam_schools_school", "school_id"),
     )
+
+    def to_dict(self) -> dict:
+        return {
+            "school_id": self.school_id,
+            "school_name": self.school.name if self.school else None,
+            "is_saved": self.is_saved,
+            "is_public": self.is_public
+        }
 
 
 class Exam(BaseDBClass):
@@ -159,15 +168,8 @@ class Exam(BaseDBClass):
         return [es.school_id for es in self.schools]
 
     def get_schools_saved_status(self) -> list[dict]:
-        """获取所有参与学校的保存状态信息"""
-        return [
-            {
-                "school_id": es.school_id,
-                "school_name": es.school.name,
-                "is_saved": es.is_saved
-            }
-            for es in self.schools
-        ]
+        """获取所有参与学校的保存状态和公开状态信息"""
+        return [es.to_dict() for es in self.schools]
 
     def is_saved_for_school(self, school_id: str) -> bool:
         """检查指定学校是否已保存考试数据

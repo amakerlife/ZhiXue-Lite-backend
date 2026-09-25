@@ -135,7 +135,35 @@ def list_exams():
     }), 200
 
 
-@admin_bp.route("/zhixue/<string:zhixue_username>/users", methods=["GET"])
+@admin_bp.route("/exam/<string:exam_id>/school/<string:school_id>/public", methods=["PUT"])
+def set_exam_school_public(exam_id, school_id):
+    """设置考试对指定学校学生的公开状态"""
+    is_public = request.get_json().get("is_public")
+    if not isinstance(is_public, bool):
+        return jsonify({"success": False, "message": "参数不合法"}), 400
+
+    exam = db.session.get(Exam, exam_id)
+    if exam is None:
+        return jsonify({"success": False, "message": "考试不存在"}), 404
+    exam_school = exam.get_exam_school(school_id)
+    if exam_school is None:
+        return jsonify({"success": False, "message": "该学校未参与此次考试"}), 404
+
+    exam_school.is_public = is_public
+    db.session.commit()
+
+    return jsonify({
+        "success": True,
+        "message": "已公开该考试" if is_public else "已取消公开该考试",
+        "exam": {
+            "id": exam.id,
+            "name": exam.name,
+            "created_at": exam.created_at,
+            "schools": exam.get_schools_saved_status()
+        }
+    }), 200
+
+
 def list_users_by_zhixue(zhixue_username):
     """根据智学网账号列出绑定的用户"""
     # page = max(1, request.args.get("page", 1, type=int))
@@ -288,7 +316,7 @@ def storage_delete():
     if not s3.is_enabled():
         return jsonify({"success": False, "message": "S3 存储未启用"}), 400
 
-    data = request.get_json(silent=True) or {}
+    data = request.get_json()
 
     # 全部
     if data.get("all") is True:

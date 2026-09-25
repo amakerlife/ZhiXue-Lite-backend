@@ -4,7 +4,7 @@ Admin API 测试
 测试管理员相关的 API 端点：用户管理、学校管理、Su 模式等
 """
 from datetime import datetime, timedelta
-from app.database.models import BackgroundTask, TaskStatus, User, School, Exam
+from app.database.models import BackgroundTask, TaskStatus, User, School, Exam, ExamSchool
 import pytest
 from conftest import login_as_admin, login_as_user
 
@@ -708,3 +708,150 @@ def test_admin_list_tasks_access_denied_for_regular_user(client, admin_user, reg
     assert response.status_code == 403
     data = response.get_json()
     assert data["success"] is False
+
+
+# 考试公开状态测试
+
+@pytest.fixture
+def exam_with_school(db, test_exam, test_school):
+    """为 test_exam 关联 test_school，初始未公开"""
+    exam_school = ExamSchool(exam_id=test_exam.id, school_id=test_school.id, is_saved=True)
+    db.session.add(exam_school)
+    db.session.commit()
+    return test_exam
+
+
+def test_admin_set_exam_school_public(client, admin_user, exam_with_school, test_school, db):
+    """
+    测试管理员公开考试给学校学生
+    """
+    login_as_admin(client, admin_user)
+
+    response = client.put(
+        f"/admin/exam/{exam_with_school.id}/school/{test_school.id}/public",
+        json={"is_public": True}
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["exam"]["id"] == exam_with_school.id
+    assert data["exam"]["schools"] == [{
+        "school_id": test_school.id,
+        "school_name": test_school.name,
+        "is_saved": True,
+        "is_public": True
+    }]
+
+    db.session.expire_all()
+    assert exam_with_school.get_exam_school(test_school.id).is_public is True
+
+
+def test_admin_unset_exam_school_public(client, admin_user, exam_with_school, test_school, db):
+    """
+    测试管理员取消公开考试
+    """
+    exam_with_school.get_exam_school(test_school.id).is_public = True
+    db.session.commit()
+
+    login_as_admin(client, admin_user)
+
+    response = client.put(
+        f"/admin/exam/{exam_with_school.id}/school/{test_school.id}/public",
+        json={"is_public": False}
+    )
+
+    assert response.status_code == 200
+    data = response.get_json()
+    assert data["success"] is True
+    assert data["exam"]["schools"][0]["is_public"] is False
+
+    db.session.expire_all()
+    assert exam_with_school.get_exam_school(test_school.id).is_public is False
+
+
+def test_admin_set_exam_public_invalid_body(client, admin_user, exam_with_school, test_school):
+    """
+    测试 is_public 缺失或非布尔值时返回 400
+    """
+    login_as_admin(client, admin_user)
+
+    url = f"/admin/exam/{exam_with_school.id}/school/{test_school.id}/public"
+
+    response = client.put(url, json={})
+    assert response.status_code == 400
+    assert response.get_json()["success"] is False
+
+    response = client.put(url, json={"is_public": "true"})
+    assert response.status_code == 400
+    assert response.get_json()["success"] is False
+
+
+def test_admin_set_exam_public_exam_not_found(client, admin_user, test_school):
+    """
+    测试考试不存在时返回 404
+    """
+    login_as_admin(client, admin_user)
+
+    response = client.put(
+        f"/admin/exam/nonexistent/school/{test_school.id}/public",
+        json={"is_public": True}
+    )
+
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["success"] is False
+    assert "考试不存在" in data["message"]
+
+
+def test_admin_set_exam_public_school_not_in_exam(client, admin_user, exam_with_school, db):
+    """
+    测试学校未参与该考试时返回 404
+    """
+    other_school = School(id="school_002", name="其他中学")
+    db.session.add(other_school)
+    db.session.commit()
+
+    login_as_admin(client, admin_user)
+
+    response = client.put(
+        f"/admin/exam/{exam_with_school.id}/school/{other_school.id}/public",
+        json={"is_public": True}
+    )
+
+    assert response.status_code == 404
+    data = response.get_json()
+    assert data["success"] is False
+    assert "未参与" in data["message"]
+
+
+def test_admin_set_exam_public_denied_for_regular_user(client, admin_user, regular_user, exam_with_school, test_school):
+    """
+    测试普通用户无法修改公开状态
+    """
+    login_as_user(client, regular_user)
+
+    response = client.put(
+        f"/admin/exam/{exam_with_school.id}/school/{test_school.id}/public",
+        json={"is_public": True}
+    )
+
+    assert response.status_code == 403
+    assert response.get_json()["success"] is False
+
+
+def test_admin_list_exams_includes_is_public(client, admin_user, exam_with_school, test_school, db):
+    """
+    测试考试列表中每个学校携带 is_public 字段
+    """
+    exam_with_school.get_exam_school(test_school.id).is_public = True
+    db.session.commit()
+
+    login_as_admin(client, admin_user)
+
+    response = client.get("/admin/list/exams")
+
+    assert response.status_code == 200
+    schools = response.get_json()["exams"][0]["schools"]
+    assert schools[0]["school_id"] == test_school.id
+    assert schools[0]["is_public"] is True

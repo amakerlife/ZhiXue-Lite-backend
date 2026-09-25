@@ -108,6 +108,40 @@ def _normalize_optional_arg(value: str | None) -> str | None:
     return value if value else None
 
 
+def _public_exam_ids_for_student(student_id: str, school_id: str):
+    """
+    返回「指定学校已公开且该生在该校有成绩」的考试 ID 查询语句，用于 IN 子查询
+
+    by Claude
+    """
+    return (
+        select(ExamSchool.exam_id)
+        .join(Score, (Score.exam_id == ExamSchool.exam_id) & (Score.school_id == ExamSchool.school_id))
+        .where(
+            ExamSchool.is_public.is_(True) &
+            (ExamSchool.school_id == school_id) &
+            (Score.student_id == student_id)
+        )
+    )
+
+
+def _student_can_access_exam(exam_id: str) -> bool:
+    """SELF 级用户是否可访问该考试：有 UserExam 记录，或所属学校已公开该考试且该生在该校有成绩"""
+    stmt = select(UserExam.id).where(
+        (UserExam.exam_id == exam_id) &
+        (UserExam.zhixue_id == current_user.zhixue_account_id)
+    )
+    if db.session.scalar(stmt) is not None:
+        return True
+
+    student_id = current_user.student_id
+    school_id = current_user.school_id
+    if student_id is None or school_id is None:
+        return False
+    stmt = _public_exam_ids_for_student(student_id, school_id).where(ExamSchool.exam_id == exam_id)
+    return db.session.scalar(stmt) is not None
+
+
 def _get_student_score_school_id(
     exam_id: str,
     student_id: str,
@@ -184,11 +218,7 @@ def _resolve_exam_student_context(
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
         if current_user.zhixue is None:
             return None, (jsonify({"success": False, "message": "请先绑定智学网账号"}), 401)
-        stmt = select(UserExam).where(
-            (UserExam.exam_id == exam.id) &
-            (UserExam.zhixue_id == current_user.zhixue_account_id)
-        )
-        if not db.session.scalar(stmt):
+        if not _student_can_access_exam(exam.id):
             return None, (jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403)
 
         if current_user.school_id is None:
@@ -259,7 +289,14 @@ def get_exam_list():
         return jsonify({"success": False, "message": "请先绑定智学网账号或联系管理员分配学校"}), 401
 
     if scope == "self":
-        stmt = select(Exam).join(UserExam).where(UserExam.zhixue_id == current_user.zhixue_account_id)
+        user_exam_ids = select(UserExam.exam_id).where(UserExam.zhixue_id == current_user.zhixue_account_id)
+        visible = Exam.id.in_(user_exam_ids)
+        # 管理员公开给本校有成绩学生的考试
+        if current_user.student_id is not None and current_user.school_id is not None:
+            visible = visible | Exam.id.in_(
+                _public_exam_ids_for_student(current_user.student_id, current_user.school_id)
+            )
+        stmt = select(Exam).where(visible)
     elif scope == "school":
         # 支持联考：通过 ExamSchool 关联表查询该学校的所有考试
         stmt = select(Exam).join(ExamSchool).where(ExamSchool.school_id == current_user.school_id)
@@ -292,15 +329,7 @@ def get_exam_list():
         if has_global_permission:
             schools = item.get_schools_saved_status()
         elif user_school_id:
-            schools = [
-                {
-                    "school_id": es.school_id,
-                    "school_name": es.school.name if es.school else None,
-                    "is_saved": es.is_saved
-                }
-                for es in item.schools
-                if es.school_id == user_school_id
-            ]
+            schools = [es.to_dict() for es in item.schools if es.school_id == user_school_id]
         else:
             schools = []
 
@@ -429,11 +458,7 @@ def get_exam_info(exam_id):
     elif current_user.has_permission(PermissionType.VIEW_EXAM_DATA, PermissionLevel.SELF):
         if current_user.zhixue is None:
             return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
-        stmt = select(UserExam).where(
-            (UserExam.exam_id == exam_id) &
-            (UserExam.zhixue_id == current_user.zhixue_account_id)
-        )
-        if not db.session.scalar(stmt):
+        if not _student_can_access_exam(exam_id):
             return jsonify({"success": False, "message": "无权访问该考试或用户暂无该考试记录"}), 403
 
     # 根据权限返回不同的学校列表
@@ -443,15 +468,7 @@ def get_exam_info(exam_id):
         schools = exam.get_schools_saved_status()
     elif current_user.school_id:
         # 有默认学校：只返回该学校信息
-        schools = [
-            {
-                "school_id": es.school_id,
-                "school_name": es.school.name if es.school else None,
-                "is_saved": es.is_saved
-            }
-            for es in exam.schools
-            if es.school_id == current_user.school_id
-        ]
+        schools = [es.to_dict() for es in exam.schools if es.school_id == current_user.school_id]
     else:
         # 无学校信息：返回空列表
         schools = []
@@ -488,11 +505,7 @@ def fetch_exam(exam_id):
     if not current_user.has_permission(PermissionType.FETCH_DATA, PermissionLevel.SCHOOL):
         if current_user.zhixue is None:
             return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
-        stmt = select(UserExam).where(
-            (UserExam.exam_id == exam_id) &
-            (UserExam.zhixue_id == current_user.zhixue_account_id)
-        )
-        if not db.session.scalar(stmt):
+        if not _student_can_access_exam(exam_id):
             return jsonify({"success": False, "message": "无权拉取该考试数据"}), 403
         school_id = current_user.school_id
 
@@ -509,11 +522,7 @@ def fetch_exam(exam_id):
         elif current_user.has_permission(PermissionType.REFETCH_EXAM_DATA, PermissionLevel.SELF):
             if current_user.zhixue is None:
                 return jsonify({"success": False, "message": "请先绑定智学网账号"}), 401
-            stmt = select(UserExam).where(
-                (UserExam.exam_id == exam_id) &
-                (UserExam.zhixue_id == current_user.zhixue_account_id)
-            )
-            if not db.session.scalar(stmt):
+            if not _student_can_access_exam(exam_id):
                 return jsonify({"success": False, "message": "无权使用强制刷新功能"}), 403
         else:
             return jsonify({"success": False, "message": "Access Denied"}), 403
@@ -624,11 +633,7 @@ def get_user_exam_score(exam_id):
     )
     visible_school_id = school_id if has_global_permission else current_user.school_id
     schools = [
-        {
-            "school_id": es.school_id,
-            "school_name": es.school.name if es.school else None,
-            "is_saved": es.is_saved
-        }
+        es.to_dict()
         for es in exam.schools
         if has_global_permission or es.school_id == visible_school_id
     ]
