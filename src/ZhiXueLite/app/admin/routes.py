@@ -164,6 +164,7 @@ def set_exam_school_public(exam_id, school_id):
     }), 200
 
 
+@admin_bp.route("/zhixue/<string:zhixue_username>/users", methods=["GET"])
 def list_users_by_zhixue(zhixue_username):
     """根据智学网账号列出绑定的用户"""
     # page = max(1, request.args.get("page", 1, type=int))
