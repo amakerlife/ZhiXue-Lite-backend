@@ -30,7 +30,7 @@ dependencies = [
     "gunicorn==26.2.0",
     "cryptography==50.0.1",
     "boto3>=1.43",
-    "SQLAlchemy==2.1.0"
+    "SQLAlchemy==2.1.1"
 ]
 
 [project.optional-dependencies]
