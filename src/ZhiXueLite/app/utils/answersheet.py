@@ -67,9 +67,10 @@ def draw_details(
     y: float,
     color: str,
     cnt: int,
+    indent: int = 0,
 ) -> Tuple[Image.Image, int]:
     draw = ImageDraw.Draw(image)
-    draw.text((x + 5, y + 10 + cnt), text, fill=color, font=font)
+    draw.text((x + 5 + indent * 25, y + 10 + cnt), text, fill=color, font=font)
     cnt += 30
     return image, cnt
 
@@ -206,7 +207,7 @@ def draw_answersheet(
                             image, cnt = draw_details(
                                 image,
                                 f"{step_label}: {step['score']}",
-                                font, left, top, "blue", cnt
+                                font, left, top, "blue", cnt, 1
                             )
                         teacher_records = subtopic.get("teacherMarkingRecords", [])
                         if len(teacher_records) > 1:
@@ -215,7 +216,7 @@ def draw_answersheet(
                                 image, cnt = draw_details(
                                     image,
                                     f"{teacher_name} 打分: {record['score']}",
-                                    font, left, top, "blue", cnt
+                                    font, left, top, "blue", cnt, 1
                                 )
 
             # 绘制区域边框及总分
