@@ -147,15 +147,16 @@ def draw_answersheet(
                         answer_details[problem]["standardScore"]
                     )
 
-            # 绘制主观题各题目得分及阅卷老师
+            # 绘制主观题得分、小题得分、步骤分及阅卷老师
             cnt = 0
             for topic_number, details in answer_details.items():
                 if (topic_number in problems
                         and topic_number not in objective_answer):
                     sum_score += cast(float, details["score"])
                     standard_sum_score += cast(float, details["standardScore"])
+                    topic_label = topic_mapping.get(str(topic_number), str(topic_number))
                     score_text = (
-                        f"{topic_mapping.get(str(topic_number))}: 得分: "
+                        f"{topic_label}: "
                         f"{details['score']}/{details['standardScore']}"
                     )
                     if details['score'] == details['standardScore']:
@@ -176,46 +177,45 @@ def draw_answersheet(
                             "darkorange",
                             cnt
                         )
-                    if len(cast(list, details["subTopics"])) > 1:
-                        for subtopic in cast(list, details["subTopics"]):
-                            score_text = (
-                                f"小题 {subtopic['subTopicIndex']}: 得分: "
-                                f"{subtopic['score']}"
+                    subtopics = (cast(list, details["subTopics"])
+                                 if isinstance(details["subTopics"], list) else [])
+                    multiple_subtopics = len(subtopics) > 1
+                    for subtopic in subtopics:
+                        sub_index = subtopic["subTopicIndex"]
+                        if multiple_subtopics:
+                            # 答题卡上的小题题号，如 "13(1)"、"21(1)(2)"
+                            sub_label = topic_mapping.get(
+                                f"{topic_number}({sub_index})",
+                                f"{topic_label}({sub_index})"
                             )
                             image, cnt = draw_details(
-                                image, score_text, font, left, top, "blue", cnt
+                                image,
+                                f"{sub_label}: {subtopic['score']}",
+                                font, left, top, "blue", cnt
                             )
-                            if len(subtopic["teacherMarkingRecords"]) > 1:
-                                for record in subtopic["teacherMarkingRecords"]:
-                                    teacher_name = record.get(
-                                        "teacherName",
-                                        "未知教师"
-                                    )
-                                    if teacher_name == "":
-                                        teacher_name = "未知教师"
-                                    image, cnt = draw_details(
-                                        image,
-                                        f"{teacher_name} 打分: {record['score']}",
-                                        font,
-                                        left,
-                                        top,
-                                        "blue",
-                                        cnt
-                                    )
-                    elif (isinstance(details["subTopics"], list) and
-                          details["subTopics"]):
-                        subtopic = cast(dict, details["subTopics"][0])
-                        if len(subtopic["teacherMarkingRecords"]) > 1:
-                            for record in subtopic["teacherMarkingRecords"]:
-                                teacher_name = record.get("teacherName", "未知教师")
+                        else:
+                            # 只有一个小题时它就是题目本身，得分已在上一行画出
+                            sub_label = topic_label
+                        for step in subtopic.get("stepRecords", []):
+                            # 步骤分
+                            step_label = topic_mapping.get(
+                                f"{topic_number}({sub_index})({step['stepNum']})"
+                            )
+                            if not step_label or step_label == sub_label:
+                                step_label = f"{sub_label}({step.get('stepTitle') or step['stepNum']})"
+                            image, cnt = draw_details(
+                                image,
+                                f"{step_label}: {step['score']}",
+                                font, left, top, "blue", cnt
+                            )
+                        teacher_records = subtopic.get("teacherMarkingRecords", [])
+                        if len(teacher_records) > 1:
+                            for record in teacher_records:
+                                teacher_name = record.get("teacherName") or "未知教师"
                                 image, cnt = draw_details(
                                     image,
                                     f"{teacher_name} 打分: {record['score']}",
-                                    font,
-                                    left,
-                                    top,
-                                    "blue",
-                                    cnt
+                                    font, left, top, "blue", cnt
                                 )
 
             # 绘制区域边框及总分

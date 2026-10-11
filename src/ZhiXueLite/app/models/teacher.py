@@ -459,10 +459,18 @@ class ExtendedTeacherAccount(TeacherAccount):
                 "standardScore": record["standardScore"],
                 "subTopics": []
             }
-            for subtopic in record.get("subTopics", []):
+            for subtopic in record.get("subTopics") or []:
+                step_records = subtopic.get("stepRecords")
+                if not isinstance(step_records, list):
+                    step_records = []  # 没有分步骤给分时智学网返回的是空字符串
                 answer_details[topic_number]["subTopics"].append({
                     "subTopicIndex": subtopic["subTopicIndex"],
                     "score": subtopic["score"],
+                    "stepRecords": [{
+                        "stepNum": step["stepNum"],
+                        "stepTitle": step.get("stepTitle") or "",
+                        "score": step["score"]
+                    } for step in step_records],
                     "teacherMarkingRecords": [{
                         "score": teacher["score"],
                         "teacherName": teacher.get("teacherName")
