@@ -414,8 +414,9 @@ class ExtendedTeacherAccount(TeacherAccount):
                         break
                     if page_index not in page_positions:
                         page_positions[page_index] = []
-                    if (flag or position["left"] <= 0 or position["top"] <= 0 or position["left"] < out_left or
-                            position["top"] < out_top):
+                    if (flag or position["left"] <= 0 or position["top"] <= 0 or
+                            position["left"] + 10 < out_left or
+                            position["top"] + 10 < out_top):  # 10px 容差，非精确数字，待验证
                         position["left"] += out_left
                         position["top"] += out_top
                         flag = True
