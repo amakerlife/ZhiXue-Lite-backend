@@ -24,7 +24,7 @@ dependencies = [
     "requests==2.34.2",
     "zhixuewang==1.5.1",
     "openpyxl==3.1.5",
-    "pillow==12.3.0",
+    "pillow==13.0.0",
     "psycopg[binary]==3.3.6",
     "python-dotenv==1.2.3",
     "gunicorn==26.2.0",
